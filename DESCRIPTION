@@ -1,0 +1,37 @@
+Package: classir
+Title: Tools for Preparing and Analysing Psychological Data
+Version: 0.0.0.9000
+Authors@R: 
+    person("David", "Sidhu", 
+           email = "david.sidhu@carleton.ca", 
+           role = c("aut", "cre"))
+Description: Functions for the typical kinds of operations psychologists (and
+    other researchers) do in R, including surveying datasets ('look'),
+    preparing them for analysis ('prep') and combining them ('add_values').
+    Also includes functions geared towards psycholinguistic analyses but
+    potentially useful more widely: simplifying the random effects structure
+    of a linear mixed effects model until it converges ('converge'), running
+    several approaches to building a regression model and reporting all of
+    the results together ('compare_methods'), and transcribing words into
+    IPA ('transcribe_phonemes').
+License: MIT + file LICENSE
+Encoding: UTF-8
+Roxygen: list(markdown = TRUE)
+Depends: R (>= 4.0.0)
+Imports:
+    leaps,
+    utils,
+    stats,
+    tools,
+    data.table,
+    glmnet,
+    MASS
+Suggests:
+    testthat (>= 3.0.0),
+    knitr,
+    rmarkdown,
+    VSURF,
+    lmerTest
+Config/testthat/edition: 3
+LazyData: true
+RoxygenNote: 7.3.3
