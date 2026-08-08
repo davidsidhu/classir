@@ -48,11 +48,7 @@
 #'   `lmerTest::as_lmerModLmerTest()` so that `summary()` reports Satterthwaite
 #'   degrees of freedom and p-values for the fixed effects.
 #' @param verbose Logical. If TRUE (default), report each step.
-#' @param return_log Logical. If TRUE, return a list of `model` and `log`
-#'   rather than just the model. Default FALSE.
-#'
-#' @return The converged model, or the last model tried if nothing worked. With
-#'   `return_log = TRUE`, a list with `model` and `log`.
+#' @return The converged model, or the last model tried if nothing worked.
 #'
 #' @examples
 #' \dontrun{

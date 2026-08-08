@@ -25,13 +25,16 @@ Imports:
     tools,
     data.table,
     glmnet,
-    MASS
+    MASS,
+    lme4
 Suggests:
     testthat (>= 3.0.0),
     knitr,
     rmarkdown,
     VSURF,
-    lmerTest
+    lmerTest,
+    afex,
+    readxl
 Config/testthat/edition: 3
 LazyData: true
 RoxygenNote: 7.3.3

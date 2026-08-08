@@ -46,13 +46,9 @@ Default 20.}
 degrees of freedom and p-values for the fixed effects.}
 
 \item{verbose}{Logical. If TRUE (default), report each step.}
-
-\item{return_log}{Logical. If TRUE, return a list of \code{model} and \code{log}
-rather than just the model. Default FALSE.}
 }
 \value{
-The converged model, or the last model tried if nothing worked. With
-\code{return_log = TRUE}, a list with \code{model} and \code{log}.
+The converged model, or the last model tried if nothing worked.
 }
 \description{
 Works through a fixed sequence of remedies for a mixed model that failed to
