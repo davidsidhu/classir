@@ -126,7 +126,7 @@ converge <- function(m,
     say("  Converged.")
     return(converge_out(fit, log, verbose, p_values))
   }
-  say("  Still not converging.")
+  say(if (is.null(fit)) "  Refit failed." else "  Still not converging.")
 
   # --- step 2: drop correlations --------------------------------------------
   say("Step 2: dropping intercept-slope correlations (||, via afex::lmer_alt).")
@@ -148,7 +148,7 @@ converge <- function(m,
                          orig_ctrl, singular_fails, restore, say)
     return(converge_out(fit, log, verbose, p_values))
   }
-  say("  Still not converging.")
+  say(if (is.null(fit)) "  Refit failed." else "  Still not converging.")
 
   # --- step 3: drop slopes --------------------------------------------------
   current <- decor
@@ -187,7 +187,7 @@ converge <- function(m,
                            use_reml, orig_ctrl, singular_fails, restore, say)
       return(converge_out(fit, log, verbose, p_values))
     }
-    say("  Still not converging.")
+    say(if (is.null(fit)) "  Refit failed." else "  Still not converging.")
     last <- fit
   }
 
@@ -234,13 +234,10 @@ build_form <- function(fixed, bars) {
 try_fit <- function(form, data, optimizer, maxfun, reml, decor) {
   ctrl <- lme4::lmerControl(optimizer = optimizer,
                             optCtrl = list(maxfun = maxfun))
-  suppressWarnings(suppressMessages(tryCatch({
-    if (decor) {
-      afex::lmer_alt(form, data = data, control = ctrl, REML = reml)
-    } else {
-      lme4::lmer(form, data = data, control = ctrl, REML = reml)
-    }
-  }, error = function(e) NULL)))
+  suppressWarnings(suppressMessages(tryCatch(
+    do.call(if (decor) afex::lmer_alt else lme4::lmer,
+            list(formula = form, data = data, control = ctrl, REML = reml)),
+    error = function(e) NULL)))
 }
 
 
@@ -249,8 +246,17 @@ split_bar <- function(bar) {
   parts <- strsplit(bar, "\\|\\|?")[[1]]
   lhs   <- trimws(parts[1])
   group <- trimws(parts[length(parts)])
-  terms <- trimws(strsplit(lhs, "\\+")[[1]])
-  terms <- terms[nzchar(terms) & !terms %in% c("1", "0")]
+
+  # expand `*` into its main effects and interactions, so a slope written
+  # (1 + a * b | g) is three droppable terms rather than one atomic one
+  terms <- tryCatch(
+    attr(stats::terms(stats::as.formula(paste("~", lhs))), "term.labels"),
+    error = function(e) {
+      x <- trimws(strsplit(lhs, "\\+")[[1]])
+      x[nzchar(x) & !x %in% c("1", "0")]
+    }
+  )
+
   list(terms = terms, group = group, double = grepl("\\|\\|", bar))
 }
 
@@ -288,12 +294,15 @@ term_var <- function(fit, group, cols, method = "min") {
     grepl("^[0-9]+$", substring(g, nchar(group) + 2L))
   }, logical(1))
 
+  # afex::lmer_alt renames columns: condb -> re1.condb, a:b -> re1.a_by_b
+  unrename <- function(x) gsub("_by_", ":", sub("^re[0-9]+\\.", "", x))
+
   vals <- numeric(0)
   for (g in gnames[belongs]) {
     v  <- diag(as.matrix(vc[[g]]))
     nm <- names(v)
     if (is.null(nm)) next
-    vals <- c(vals, v[nm %in% cols])
+    vals <- c(vals, v[unrename(nm) %in% cols])
   }
 
   if (length(vals) == 0L) return(NA_real_)
@@ -334,7 +343,8 @@ pick_slope <- function(fit, bars, var_method, data) {
   # rebuild the bar without that term
   sb    <- split_bar(bars[pick$i])
   keep  <- setdiff(sb$terms, pick$term)
-  pipe  <- if (sb$double) "||" else "|"
+  # (1 || g) is not valid; with no slopes left the bar must use a single |
+  pipe  <- if (sb$double && length(keep) > 0L) "||" else "|"
 
   new_bars <- bars
   new_bars[pick$i] <- if (length(keep) == 0L) {

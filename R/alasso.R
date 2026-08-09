@@ -207,7 +207,7 @@ alasso <- function(d,
       cat("  none\n")
     } else {
       ord <- selected[order(abs(slopes[selected]), decreasing = TRUE)]
-      w   <- max(nchar(ord))
+      w   <- max(nchar(c(ord, "(Intercept)")))
       cat(sprintf("  %-*s  %8.4f\n", w, "(Intercept)",
                   cfv[["(Intercept)"]]))
       for (v in ord) cat(sprintf("  %-*s  %8.4f\n", w, v, slopes[[v]]))
