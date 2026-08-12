@@ -115,14 +115,18 @@ look <- function(d,
 
     labs <- character(0)
     vals <- character(0)
-    put  <- function(l, x) {
+    slot <- character(0)     # which fixed row this line belongs in, if any
+    rt   <- logical(0)       # right-align the value?
+    put  <- function(l, x, s = "", right = TRUE) {
       labs <<- c(labs, l)
       vals <<- c(vals, x)
+      slot <<- c(slot, s)
+      rt   <<- c(rt, right)
     }
 
     if (length(zz) == 0L) {
-      put("", "all values missing")
-      blocks[[j]] <- list(labs = labs, vals = vals)
+      put("", "all values missing", right = FALSE)
+      blocks[[j]] <- list(labs = labs, vals = vals, slot = slot, rt = rt)
       next
     }
 
@@ -136,27 +140,27 @@ look <- function(d,
       md <- stats::median(zz)
       rg <- range(zz)
 
-      put("Mean",   num(m))
-      put("SD",     if (is.na(s)) "-" else num(s))
-      put("Min",    num(rg[1]))
-      put("Median", num(md))
-      put("Max",    num(rg[2]))
+      put("Mean",   num(m),                        "Mean")
+      put("SD",     if (is.na(s)) "-" else num(s),  "SD")
+      put("Min",    num(rg[1]),                     "Min")
+      put("Median", num(md),                        "Median")
+      put("Max",    num(rg[2]),                     "Max")
 
       sk <- kt <- NA_real_
       if (normality && !constant && length(zz) > 3L && !is.na(s) && s > 0) {
         sk <- skewness(zz)
         kt <- kurtosis(zz)
         if (abs(sk) > skew_max) {
-          put("Skew", sprintf("%s (%s)", num(sk),
-                              if (sk > 0) "bunched left" else "bunched right"))
+          put("Skew", if (sk > 0) "bunched left" else "bunched right",
+              "Skew", right = FALSE)
         }
         if (abs(kt) > kurt_max) {
-          put("Kurt", sprintf("%s (%s)", num(kt),
-                              if (kt > 0) "peaked" else "flat"))
+          put("Kurt", if (kt > 0) "peaked" else "flat",
+              "Kurt", right = FALSE)
         }
       }
 
-      if (constant) put("", "All values identical!")
+      if (constant) put("", "All values identical!", right = FALSE)
 
       out[[v]] <- list(class = class(z)[1], n = length(zz), na = n_na,
                        mean = m, sd = s, median = md,
@@ -174,16 +178,15 @@ look <- function(d,
 
       if (near_unique) {
         put("Lvls", cnt(k))
-        put("e.g.", paste(nms[seq_len(min(examples, k))], collapse = ", "))
+        eg <- nms[seq_len(min(examples, k))]
+        put("e.g.", eg[1], right = FALSE)
+        for (x in eg[-1]) put("", x, right = FALSE)
       } else {
         shown <- min(k, max_levels)
-        for (i in seq_len(shown)) {
-          put(nms[i], sprintf("%s (%.1f%%)", cnt(tab[i]),
-                              100 * tab[i] / length(chr)))
-        }
+        for (i in seq_len(shown)) put(nms[i], cnt(tab[i]))
         if (k > shown) {
-          put("...", sprintf("%s more level%s (%s total)", cnt(k - shown),
-                             if (k - shown == 1L) "" else "s", cnt(k)))
+          put("\u2026", sprintf("%s more", cnt(k - shown)),
+              "", right = FALSE)
         }
       }
 
@@ -200,18 +203,51 @@ look <- function(d,
     }
 
     if (n_na > 0L) {
-      put("NA", sprintf("%s (%.1f%%)", cnt(n_na), 100 * n_na / n))
+      put("NA", sprintf("%s (%.1f%%)", cnt(n_na), 100 * n_na / n), "NA",
+          right = FALSE)
     }
 
-    blocks[[j]] <- list(labs = labs, vals = vals)
+    blocks[[j]] <- list(labs = labs, vals = vals, slot = slot, rt = rt)
   }
 
   # --- render each block to lines -------------------------------------------
+  # numeric statistics occupy fixed rows, so the same label sits at the same
+  # height in every block; a variable without a Skew line leaves that row blank
+  slot_order <- c("Mean", "SD", "Min", "Median", "Max", "Skew", "Kurt", "NA")
+
   lines <- lapply(blocks, function(b) {
     if (length(b$labs) == 0L) return(character(0))
-    w <- max(nchar(b$labs))
-    sprintf("  %-*s  %s", w, b$labs, b$vals)
+
+    lab_w <- max(nchar(b$labs))
+    val_w <- if (any(b$rt)) max(nchar(b$vals[b$rt])) else 0L
+
+    body <- ifelse(b$rt,
+                   formatC(b$vals, width = val_w),
+                   b$vals)
+    txt  <- ifelse(nzchar(b$labs),
+                   sprintf(" %-*s : %s", lab_w, b$labs, body),
+                   sprintf(" %-*s   %s", lab_w, "", body))
+
+    # place the numeric slots at fixed heights, everything else in order
+    if (any(b$slot %in% slot_order)) {
+      keep  <- b$slot %in% slot_order
+      fixed <- stats::setNames(rep("", length(slot_order)), slot_order)
+      fixed[b$slot[keep]] <- txt[keep]
+      txt <- c(fixed, txt[!keep])
+      # trim trailing blanks unique to this block; padding happens per row
+      while (length(txt) && !nzchar(txt[length(txt)])) {
+        txt <- txt[-length(txt)]
+      }
+    }
+    txt
   })
+
+  # a slot left blank in one block must still be blank, not collapsed, when a
+  # neighbouring block uses it -- so pad every block to the row's slot depth
+  slot_depth <- vapply(blocks, function(b) {
+    if (!any(b$slot %in% slot_order)) return(0L)
+    max(match(b$slot[b$slot %in% slot_order], slot_order))
+  }, integer(1))
 
   widths <- vapply(seq_along(lines), function(j) {
     max(nchar(c(headers[j], lines[[j]])))
@@ -236,6 +272,22 @@ look <- function(d,
     cat(paste(mapply(function(s, w) formatC(s, width = -w),
                      headers[idx], widths[idx]), collapse = "   "),
         "\n", sep = "")
+
+    # every numeric block in this row gets the same slot depth
+    dep <- max(slot_depth[idx])
+    if (dep > 0L) {
+      for (jj in idx) {
+        if (slot_depth[jj] > 0L && slot_depth[jj] < dep) {
+          b  <- blocks[[jj]]
+          nf <- sum(!(b$slot %in% slot_order))
+          ln <- lines[[jj]]
+          head_n <- length(ln) - nf
+          lines[[jj]] <- c(ln[seq_len(head_n)],
+                           rep("", dep - head_n),
+                           if (nf > 0L) ln[(head_n + 1L):length(ln)])
+        }
+      }
+    }
 
     depth <- max(vapply(lines[idx], length, integer(1)))
     for (r in seq_len(depth)) {
@@ -473,12 +525,12 @@ cor_stars <- function(m, digits = 2, method = "pearson") {
       }
 
       star <- if (is.na(p)) "" else
-              if (p < .001) "***" else
-              if (p < .01)  "**"  else
-              if (p < .05)  "*"   else ""
+        if (p < .001) "***" else
+          if (p < .01)  "**"  else
+            if (p < .05)  "*"   else ""
 
       out[i, j] <- if (is.na(rv)) "NA" else
-                   paste0(formatC(rv, format = "f", digits = digits), star)
+        paste0(formatC(rv, format = "f", digits = digits), star)
     }
   }
 
