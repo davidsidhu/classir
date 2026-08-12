@@ -117,16 +117,22 @@ look <- function(d,
     vals <- character(0)
     slot <- character(0)     # which fixed row this line belongs in, if any
     rt   <- logical(0)       # right-align the value?
-    put  <- function(l, x, s = "", right = TRUE) {
+    cl   <- logical(0)       # print a colon after the label?
+    fl   <- logical(0)       # one flush-left line, ignoring the columns?
+    put  <- function(l, x, s = "", right = TRUE, colon = TRUE,
+                     flush = FALSE) {
       labs <<- c(labs, l)
       vals <<- c(vals, x)
       slot <<- c(slot, s)
       rt   <<- c(rt, right)
+      cl   <<- c(cl, colon)
+      fl   <<- c(fl, flush)
     }
 
     if (length(zz) == 0L) {
       put("", "all values missing", right = FALSE)
-      blocks[[j]] <- list(labs = labs, vals = vals, slot = slot, rt = rt)
+      blocks[[j]] <- list(labs = labs, vals = vals, slot = slot,
+                          rt = rt, colon = cl, flush = fl)
       next
     }
 
@@ -185,8 +191,8 @@ look <- function(d,
         shown <- min(k, max_levels)
         for (i in seq_len(shown)) put(nms[i], cnt(tab[i]))
         if (k > shown) {
-          put("\u2026", sprintf("%s more", cnt(k - shown)),
-              "", right = FALSE)
+          put("", sprintf("\u2026 %s more", cnt(k - shown)), "",
+              right = FALSE, colon = FALSE, flush = TRUE)
         }
       }
 
@@ -207,50 +213,54 @@ look <- function(d,
           right = FALSE)
     }
 
-    blocks[[j]] <- list(labs = labs, vals = vals, slot = slot, rt = rt)
+    blocks[[j]] <- list(labs = labs, vals = vals, slot = slot,
+                        rt = rt, colon = cl, flush = fl)
   }
 
   # --- render each block to lines -------------------------------------------
   # numeric statistics occupy fixed rows, so the same label sits at the same
   # height in every block; a variable without a Skew line leaves that row blank
-  slot_order <- c("Mean", "SD", "Min", "Median", "Max", "Skew", "Kurt", "NA")
+  num_slots  <- c("Mean", "SD", "Min", "Median", "Max", "Skew", "Kurt")
+  slot_order <- c(num_slots, "NA")
 
-  lines <- lapply(blocks, function(b) {
-    if (length(b$labs) == 0L) return(character(0))
-
-    lab_w <- max(nchar(b$labs))
-    val_w <- if (any(b$rt)) max(nchar(b$vals[b$rt])) else 0L
-
-    body <- ifelse(b$rt,
-                   formatC(b$vals, width = val_w),
-                   b$vals)
-    txt  <- ifelse(nzchar(b$labs),
-                   sprintf(" %-*s : %s", lab_w, b$labs, body),
-                   sprintf(" %-*s   %s", lab_w, "", body))
-
-    # place the numeric slots at fixed heights, everything else in order
-    if (any(b$slot %in% slot_order)) {
-      keep  <- b$slot %in% slot_order
-      fixed <- stats::setNames(rep("", length(slot_order)), slot_order)
-      fixed[b$slot[keep]] <- txt[keep]
-      txt <- c(fixed, txt[!keep])
-      # trim trailing blanks unique to this block; padding happens per row
-      while (length(txt) && !nzchar(txt[length(txt)])) {
-        txt <- txt[-length(txt)]
-      }
+  # each block is rendered as its fixed statistic rows plus any free lines;
+  # which fixed rows actually get printed is decided per row of blocks, so a
+  # slot no block in that row uses leaves no gap
+  rendered <- lapply(blocks, function(b) {
+    if (length(b$labs) == 0L) {
+      return(list(slotted = stats::setNames(rep("", length(slot_order)),
+                                            slot_order),
+                  free = character(0)))
     }
-    txt
+
+    lab_w <- max(disp_w(b$labs))
+    val_w <- if (any(b$rt)) max(disp_w(b$vals[b$rt])) else 0L
+
+    body <- ifelse(b$rt, pad_l(b$vals, val_w), b$vals)
+    txt  <- ifelse(b$flush,
+                   paste0(" ", b$vals),
+                   ifelse(nzchar(b$labs) & b$colon,
+                          paste0(" ", pad_r(b$labs, lab_w), " : ", body),
+                          paste0(" ", pad_r(b$labs, lab_w), "   ", body)))
+
+    slotted <- stats::setNames(rep("", length(slot_order)), slot_order)
+    free    <- txt
+
+    # only a numeric block has statistics to line up; a categorical block's
+    # rows are level names, which have nothing to align against
+    if (any(b$slot %in% num_slots)) {
+      keep <- b$slot %in% slot_order
+      slotted[b$slot[keep]] <- txt[keep]
+      free <- txt[!keep]
+    }
+
+    list(slotted = slotted, free = free)
   })
 
-  # a slot left blank in one block must still be blank, not collapsed, when a
-  # neighbouring block uses it -- so pad every block to the row's slot depth
-  slot_depth <- vapply(blocks, function(b) {
-    if (!any(b$slot %in% slot_order)) return(0L)
-    max(match(b$slot[b$slot %in% slot_order], slot_order))
-  }, integer(1))
+  lines <- lapply(rendered, function(r) c(r$slotted[nzchar(r$slotted)], r$free))
 
   widths <- vapply(seq_along(lines), function(j) {
-    max(nchar(c(headers[j], lines[[j]])))
+    max(disp_w(c(headers[j], lines[[j]])))
   }, integer(1))
 
   avail <- max(getOption("width", 80), 40L)
@@ -269,31 +279,29 @@ look <- function(d,
     idx <- j:(k - 1L)
 
     cat("\n")
-    cat(paste(mapply(function(s, w) formatC(s, width = -w),
-                     headers[idx], widths[idx]), collapse = "   "),
+    cat(paste(pad_r(headers[idx], widths[idx]), collapse = "   "),
         "\n", sep = "")
 
-    # every numeric block in this row gets the same slot depth
-    dep <- max(slot_depth[idx])
-    if (dep > 0L) {
-      for (jj in idx) {
-        if (slot_depth[jj] > 0L && slot_depth[jj] < dep) {
-          b  <- blocks[[jj]]
-          nf <- sum(!(b$slot %in% slot_order))
-          ln <- lines[[jj]]
-          head_n <- length(ln) - nf
-          lines[[jj]] <- c(ln[seq_len(head_n)],
-                           rep("", dep - head_n),
-                           if (nf > 0L) ln[(head_n + 1L):length(ln)])
-        }
-      }
-    }
+    # keep only the statistic rows something in this row of blocks fills
+    used <- slot_order[vapply(slot_order, function(s) {
+      any(vapply(idx, function(jj) nzchar(rendered[[jj]]$slotted[[s]]),
+                 logical(1)))
+    }, logical(1))]
 
-    depth <- max(vapply(lines[idx], length, integer(1)))
+    row_lines <- lapply(idx, function(jj) {
+      r <- rendered[[jj]]
+      # a block with no statistics starts at the top rather than below the
+      # statistic rows -- its level names have nothing to line up with
+      if (any(nzchar(r$slotted))) c(r$slotted[used], r$free) else r$free
+    })
+    names(row_lines) <- as.character(idx)
+
+    depth <- max(vapply(row_lines, length, integer(1)))
     for (r in seq_len(depth)) {
-      row <- vapply(idx, function(jj) {
-        s <- if (r <= length(lines[[jj]])) lines[[jj]][r] else ""
-        formatC(s, width = -widths[jj])
+      row <- vapply(seq_along(idx), function(m) {
+        ln <- row_lines[[m]]
+        s  <- if (r <= length(ln)) ln[r] else ""
+        pad_r(s, widths[idx[m]])
       }, character(1))
       cat(paste(row, collapse = "   "), "\n", sep = "")
     }
@@ -452,6 +460,17 @@ look <- function(d,
   invisible(out)
 }
 
+
+
+# Internal: pad to a display width; multi-byte characters (the ellipsis, IPA)
+# occupy fewer columns than they do bytes, and formatC() pads by bytes
+disp_w <- function(x) {
+  w <- nchar(x, type = "width")
+  w[is.na(w)] <- nchar(x[is.na(w)])
+  w
+}
+pad_r <- function(x, w) paste0(x, strrep(" ", pmax(0L, w - disp_w(x))))
+pad_l <- function(x, w) paste0(strrep(" ", pmax(0L, w - disp_w(x))), x)
 
 # Internal: sample skewness (g1)
 skewness <- function(x) {
