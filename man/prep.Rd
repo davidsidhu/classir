@@ -6,6 +6,7 @@
 \usage{
 prep(
   d,
+  vars = NULL,
   complete = NULL,
   subset,
   scale = NULL,
@@ -22,8 +23,13 @@ prep(
 \arguments{
 \item{d}{A data.frame or data.table.}
 
+\item{vars}{Character or numeric: the variables an analysis will use. When
+supplied, \code{complete = TRUE} and \code{scale = TRUE} apply to these rather than
+to every column, and they are kept by \code{drop_others}.}
+
 \item{complete}{Character or numeric: columns that must have no missing
-values. Rows missing any of them are dropped.}
+values. Rows missing any of them are dropped. \code{TRUE} requires every column
+to be complete.}
 
 \item{subset}{An unquoted expression selecting rows to keep, written the way
 you would inside \code{d[...]}, e.g. \code{pos == "noun" & freq > 1}. Applied after
@@ -64,9 +70,14 @@ identified columns are dropped first. Then categorical variables are prepped
 by setting reference levels and effects coding. Then numeric variables are
 standardised. Columns are then renamed.
 
-\code{complete} names the columns that must have no missing values. Any row
-missing one of them is dropped, so everything downstream works from the same
-set of observations.
+\code{vars} names the variables an analysis will actually use. It changes what
+\code{TRUE} means elsewhere: \code{complete = TRUE} requires those columns to be
+complete rather than all of them, and \code{scale = TRUE} standardises the numeric
+ones among them. Without \code{vars}, \code{TRUE} still means every column.
+
+\code{complete} names the columns that must have no missing values, or \code{TRUE} for
+every column. Any row missing one of them is dropped, so everything
+downstream works from the same set of observations.
 
 \code{subset} keeps only the rows you want, written as an ordinary expression --
 \code{subset = pos == "noun" & freq > 1}. It is applied after the missing-value
@@ -99,6 +110,14 @@ A report of what was done is printed unless \code{quiet = TRUE}.
 }
 \examples{
 \dontrun{
+# everything applies to the named variables only
+d <- prep(demo_words,
+          vars     = c("freq", "aoa", "concreteness"),
+          complete = TRUE,
+          scale    = TRUE,
+          keep     = "word",
+          drop_others = TRUE)
+
 d <- prep(demo_words,
           complete = c("freq", "aoa", "concreteness"),
           subset   = pos != "adjective",

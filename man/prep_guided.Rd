@@ -16,9 +16,13 @@ calling environment.
 \description{
 A guided version of \code{\link[=prep]{prep()}} for people who would rather answer questions
 than write out a function call. It walks through each preparation step in
-turn -- dropping incomplete rows, subsetting, setting reference levels,
-effects coding, standardising, and dropping unused columns -- and any step
-can be skipped by pressing enter.
+turn -- naming the variables of interest, dropping incomplete rows,
+subsetting, setting reference levels, effects coding, standardising, and
+dropping unused columns -- and any step can be skipped by leaving it blank
+and pressing enter.
+
+Naming variables of interest at the start narrows every later step to those
+columns, so they only have to be picked once.
 
 The prepared data is assigned back to the dataset you passed in, and the
 equivalent \code{prep()} call is printed so the step can be pasted into a script.

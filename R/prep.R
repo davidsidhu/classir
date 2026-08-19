@@ -6,9 +6,14 @@
 #' by setting reference levels and effects coding. Then numeric variables are
 #' standardised. Columns are then renamed.
 #'
-#' `complete` names the columns that must have no missing values. Any row
-#' missing one of them is dropped, so everything downstream works from the same
-#' set of observations.
+#' `vars` names the variables an analysis will actually use. It changes what
+#' `TRUE` means elsewhere: `complete = TRUE` requires those columns to be
+#' complete rather than all of them, and `scale = TRUE` standardises the numeric
+#' ones among them. Without `vars`, `TRUE` still means every column.
+#'
+#' `complete` names the columns that must have no missing values, or `TRUE` for
+#' every column. Any row missing one of them is dropped, so everything
+#' downstream works from the same set of observations.
 #'
 #' `subset` keeps only the rows you want, written as an ordinary expression --
 #' `subset = pos == "noun" & freq > 1`. It is applied after the missing-value
@@ -41,8 +46,12 @@
 #' A report of what was done is printed unless `quiet = TRUE`.
 #'
 #' @param d A data.frame or data.table.
+#' @param vars Character or numeric: the variables an analysis will use. When
+#'   supplied, `complete = TRUE` and `scale = TRUE` apply to these rather than
+#'   to every column, and they are kept by `drop_others`.
 #' @param complete Character or numeric: columns that must have no missing
-#'   values. Rows missing any of them are dropped.
+#'   values. Rows missing any of them are dropped. `TRUE` requires every column
+#'   to be complete.
 #' @param subset An unquoted expression selecting rows to keep, written the way
 #'   you would inside `d[...]`, e.g. `pos == "noun" & freq > 1`. Applied after
 #'   the missing-value cut and before anything else.
@@ -68,6 +77,14 @@
 #'
 #' @examples
 #' \dontrun{
+#' # everything applies to the named variables only
+#' d <- prep(demo_words,
+#'           vars     = c("freq", "aoa", "concreteness"),
+#'           complete = TRUE,
+#'           scale    = TRUE,
+#'           keep     = "word",
+#'           drop_others = TRUE)
+#'
 #' d <- prep(demo_words,
 #'           complete = c("freq", "aoa", "concreteness"),
 #'           subset   = pos != "adjective",
@@ -80,6 +97,7 @@
 #'
 #' @export
 prep <- function(d,
+                 vars = NULL,
                  complete = NULL,
                  subset,
                  scale = NULL,
@@ -110,9 +128,18 @@ prep <- function(d,
     nm
   }
 
-  complete <- as_names(complete, "complete")
+  vars <- as_names(vars, "vars")
+  all_or_vars <- if (length(vars) > 0L) vars else names(d)
+
+  complete <- if (isTRUE(complete)) {
+    all_or_vars
+  } else if (isFALSE(complete)) {
+    character(0)
+  } else {
+    as_names(complete, "complete")
+  }
   scale_c <- if (isTRUE(scale)) {
-    names(d)[vapply(d, is.numeric, logical(1))]
+    all_or_vars[vapply(d[all_or_vars], is.numeric, logical(1))]
   } else if (isFALSE(scale)) {
     character(0)
   } else {
@@ -241,8 +268,13 @@ prep <- function(d,
   }
 
   # --- 5. drop other columns ------------------------------------------------
+  if (length(keep) > 0L && !drop_others) {
+    warning("`keep` only has an effect when `drop_others = TRUE`; ",
+            "no columns were dropped.", call. = FALSE)
+  }
+
   if (drop_others) {
-    wanted <- unique(c(keep, complete, scale_c, effects, names(ref),
+    wanted <- unique(c(keep, vars, complete, scale_c, effects, names(ref),
                        names(rename)))
     wanted <- intersect(names(d), wanted)
     if (length(wanted) == 0L) {

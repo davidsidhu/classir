@@ -3,9 +3,13 @@
 #' @description
 #' A guided version of [prep()] for people who would rather answer questions
 #' than write out a function call. It walks through each preparation step in
-#' turn -- dropping incomplete rows, subsetting, setting reference levels,
-#' effects coding, standardising, and dropping unused columns -- and any step
-#' can be skipped by pressing enter.
+#' turn -- naming the variables of interest, dropping incomplete rows,
+#' subsetting, setting reference levels, effects coding, standardising, and
+#' dropping unused columns -- and any step can be skipped by leaving it blank
+#' and pressing enter.
+#'
+#' Naming variables of interest at the start narrows every later step to those
+#' columns, so they only have to be picked once.
 #'
 #' The prepared data is assigned back to the dataset you passed in, and the
 #' equivalent `prep()` call is printed so the step can be pasted into a script.
@@ -46,7 +50,7 @@ prep_guided <- function(d) {
 
   is_num <- vapply(dd, is.numeric, logical(1))
   is_cat <- vapply(dd, function(z) is.factor(z) || is.character(z) ||
-                                   is.logical(z), logical(1))
+                     is.logical(z), logical(1))
 
   cat("\nPreparing ", d_name, " (", format(nrow(dd), big.mark = ","),
       " rows, ", ncol(dd), " columns).\n",
@@ -54,14 +58,38 @@ prep_guided <- function(d) {
 
   args <- list()
 
+  # ---------------------------------------------------------------- step 0
+  cat("\n\u2014\u2014 1. Which variables will your analysis use? \u2014\u2014\n\n")
+  cat("  Include your outcome variable and all predictors. Naming them\n",
+      "  here saves picking them again later.\n\n", sep = "")
+  vars <- pick_columns(names(dd), dd, "Variables of interest:")
+  if (length(vars) > 0L) args$vars <- vars
+
+  offer <- if (length(vars) > 0L) vars else names(dd)
+
   # ---------------------------------------------------------------- step 1
-  cat("\n\u2014\u2014 1. Drop rows with missing values \u2014\u2014\n\n")
-  complete <- pick_columns(names(dd), dd,
-    "Which columns must have no missing values?")
-  if (length(complete) > 0L) args$complete <- complete
+  cat("\n\u2014\u2014 2. Drop rows with missing values \u2014\u2014\n\n")
+  if (length(vars) > 0L) {
+    cat("  Your variables of interest are:\n    ", and_list(vars), "\n\n",
+        sep = "")
+    cat("  Type y to drop rows missing any of them. To choose columns\n",
+        "  yourself, leave blank and press enter.\n\n", sep = "")
+    ans <- trimws(readline("  Selection: "))
+    if (tolower(substr(ans, 1, 1)) == "y") {
+      args$complete <- TRUE
+    } else {
+      complete <- pick_columns(names(dd), dd,
+                               "Which columns must have no missing values?")
+      if (length(complete) > 0L) args$complete <- complete
+    }
+  } else {
+    complete <- pick_columns(names(dd), dd,
+                             "Which columns must have no missing values?")
+    if (length(complete) > 0L) args$complete <- complete
+  }
 
   # ---------------------------------------------------------------- step 2
-  cat("\n\u2014\u2014 2. Keep only certain rows \u2014\u2014\n\n")
+  cat("\n\u2014\u2014 3. Keep only certain rows \u2014\u2014\n\n")
   cat("  Type a condition describing the rows to keep. For example:\n\n")
   cat("    ==   equal to          pos == \"noun\"\n")
   cat("    !=   not equal to      pos != \"adjective\"\n")
@@ -82,13 +110,13 @@ prep_guided <- function(d) {
   }
 
   # ---------------------------------------------------------------- step 3
-  cat("\n\u2014\u2014 3. Set reference levels \u2014\u2014\n\n")
-  cat_cols <- names(dd)[is_cat]
+  cat("\n\u2014\u2014 4. Set reference levels \u2014\u2014\n\n")
+  cat_cols <- intersect(offer, names(dd)[is_cat])
   if (length(cat_cols) == 0L) {
     cat("  No categorical columns; skipping.\n")
   } else {
     chosen <- pick_columns(cat_cols, dd,
-      "Which factors need a reference level set?")
+                           "Which factors need a reference level set?")
     refs <- character(0)
     for (v in chosen) {
       lv <- levels(as.factor(dd[[v]]))
@@ -107,7 +135,7 @@ prep_guided <- function(d) {
   }
 
   # ---------------------------------------------------------------- step 4
-  cat("\n\u2014\u2014 4. Effects code two-level factors \u2014\u2014\n\n")
+  cat("\n\u2014\u2014 5. Effects code two-level factors \u2014\u2014\n\n")
   two_lev <- cat_cols[vapply(cat_cols, function(v) {
     length(unique(dd[[v]][!is.na(dd[[v]])])) == 2L
   }, logical(1))]
@@ -119,18 +147,39 @@ prep_guided <- function(d) {
   }
 
   # ---------------------------------------------------------------- step 5
-  cat("\n\u2014\u2014 5. Standardise numeric variables \u2014\u2014\n\n")
-  num_cols <- names(dd)[is_num]
+  cat("\n\u2014\u2014 6. Standardise numeric variables \u2014\u2014\n\n")
+  num_cols <- intersect(offer, names(dd)[is_num])
   if (length(num_cols) == 0L) {
     cat("  No numeric columns; skipping.\n")
+  } else if (length(vars) > 0L) {
+    cat("  Numeric variables of interest:\n    ", and_list(num_cols), "\n\n",
+        sep = "")
+    cat("  Type y to standardise all of them. To choose yourself, leave\n",
+        "  blank and press enter.\n\n", sep = "")
+    ans <- trimws(readline("  Selection: "))
+    if (tolower(substr(ans, 1, 1)) == "y") {
+      args$scale <- TRUE
+      cat("\n  You will usually want to leave your outcome variable\n",
+          "  unstandardised, so its coefficients stay in its own units.\n\n",
+          sep = "")
+      skip <- pick_columns(num_cols, dd,
+                           "Which variables do you want to leave unstandardised?")
+      if (length(skip) > 0L) args$no_scale <- skip
+    } else {
+      sc <- pick_columns(num_cols, dd, "Which should be standardised?")
+      if (length(sc) > 0L) args$scale <- sc
+    }
   } else {
-    sc <- pick_columns(num_cols, dd, "Which should be standardised?")
+    sc <- pick_columns(names(dd)[is_num], dd, "Which should be standardised?")
     if (length(sc) > 0L) args$scale <- sc
   }
 
   # ---------------------------------------------------------------- step 6
-  cat("\n\u2014\u2014 6. Drop columns you're not using \u2014\u2014\n\n")
-  used <- unique(c(args$complete, args$scale, args$effects, names(args$ref)))
+  cat("\n\u2014\u2014 7. Drop columns you're not using \u2014\u2014\n\n")
+  used <- unique(c(vars,
+                   if (!isTRUE(args$complete)) args$complete,
+                   if (!isTRUE(args$scale)) args$scale,
+                   args$effects, names(args$ref)))
   if (length(used) == 0L) {
     cat("  No columns named so far; skipping.\n")
   } else {
@@ -141,7 +190,7 @@ prep_guided <- function(d) {
     if (tolower(substr(ans, 1, 1)) == "y") {
       args$drop_others <- TRUE
       extra <- pick_columns(setdiff(names(dd), used), dd,
-        "Any others to keep as well? (e.g. an id column)")
+                            "Any others to keep as well? (e.g. an id column)")
       if (length(extra) > 0L) args$keep <- extra
     }
   }
