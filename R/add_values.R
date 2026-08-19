@@ -12,10 +12,10 @@
 #'
 #' You can choose to simply add all columns by using `add_all = TRUE`.
 #'
-#' `new_cols` renames the incoming columns, either by position or by name so
+#' `rename` renames the incoming columns, either by position or by name so
 #' that only some are renamed. By position, give one name per column in
-#' `lookup_cols`: `new_cols = c("freq", "len")`. By name, give only the ones to
-#' rename, with the old name on the left: `new_cols = c(Log_Freq_HAL =
+#' `lookup_cols`: `rename = c("freq", "len")`. By name, give only the ones to
+#' rename, with the old name on the left: `rename = c(Log_Freq_HAL =
 #' "freq")`.
 #'
 #' `add_subset` restricts the lookup to a subset of rows -- for example `PoS ==
@@ -40,7 +40,7 @@
 #'   Not needed when `add_all = TRUE`.
 #' @param add_all Logical. If TRUE, every column in `lookup` except `lookup_id`
 #'   is added, and `lookup_cols` is ignored. Default FALSE.
-#' @param new_cols Optional character vector of names for the added columns.
+#' @param rename Optional character vector renaming the added columns.
 #'   Either unnamed and the same length as `lookup_cols` (matched by position),
 #'   or named, where the names are entries in `lookup_cols` and the values are
 #'   their new names (allowing a subset to be renamed).
@@ -75,7 +75,7 @@
 #' # explicit, renamed, verbs only
 #' d2 <- add_values(d2, "Word", "ELP.csv", "Word",
 #'                  c("Log_Freq_HAL", "Length"),
-#'                  new_cols   = c("freq", "len"),
+#'                  rename   = c("freq", "len"),
 #'                  add_subset = PoS == "verb",
 #'                  fix_types  = TRUE)
 #' }
@@ -87,7 +87,7 @@ add_values <- function(d,
                        lookup_id,
                        lookup_cols,
                        add_all = FALSE,
-                       new_cols = NULL,
+                       rename = NULL,
                        add_subset,
                        multiple = c("first", "all", "error"),
                        fix_types = FALSE,
@@ -169,30 +169,30 @@ add_values <- function(d,
   # --- names for the added columns ------------------------------------------
   final_names <- lookup_cols
 
-  if (!is.null(new_cols)) {
-    if (!is.character(new_cols)) {
-      stop("`new_cols` must be a character vector.", call. = FALSE)
+  if (!is.null(rename)) {
+    if (!is.character(rename)) {
+      stop("`rename` must be a character vector.", call. = FALSE)
     }
-    if (is.null(names(new_cols))) {
-      if (length(new_cols) != length(lookup_cols)) {
-        stop("Unnamed `new_cols` must be the same length as `lookup_cols` (",
+    if (is.null(names(rename))) {
+      if (length(rename) != length(lookup_cols)) {
+        stop("Unnamed `rename` must be the same length as `lookup_cols` (",
              length(lookup_cols), ").", call. = FALSE)
       }
-      final_names <- new_cols
+      final_names <- rename
     } else {
-      if (any(!nzchar(names(new_cols)))) {
-        stop("`new_cols` must be either fully named or fully unnamed.",
+      if (any(!nzchar(names(rename)))) {
+        stop("`rename` must be either fully named or fully unnamed.",
              call. = FALSE)
       }
-      unknown <- setdiff(names(new_cols), lookup_cols)
+      unknown <- setdiff(names(rename), lookup_cols)
       if (length(unknown) > 0L) {
-        stop("`new_cols` refers to columns not in `lookup_cols`: ",
+        stop("`rename` refers to columns not in `lookup_cols`: ",
              paste(unknown, collapse = ", "), call. = FALSE)
       }
-      final_names[match(names(new_cols), lookup_cols)] <- unname(new_cols)
+      final_names[match(names(rename), lookup_cols)] <- unname(rename)
     }
     if (anyDuplicated(final_names)) {
-      stop("`new_cols` would produce duplicate column names: ",
+      stop("`rename` would produce duplicate column names: ",
            paste(unique(final_names[duplicated(final_names)]), collapse = ", "),
            call. = FALSE)
     }
@@ -202,7 +202,8 @@ add_values <- function(d,
   if (length(clash) > 0L) {
     stop("These columns already exist in `d`: ",
          paste(clash, collapse = ", "),
-         ". Rename or drop them first, or use `new_cols`.", call. = FALSE)
+         ". Drop them first, or use `rename` to name the incoming ones ",
+         "differently.", call. = FALSE)
   }
 
   # --- which rows to look up ------------------------------------------------

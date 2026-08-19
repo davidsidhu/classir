@@ -11,7 +11,7 @@ add_values(
   lookup_id,
   lookup_cols,
   add_all = FALSE,
-  new_cols = NULL,
+  rename = NULL,
   add_subset,
   multiple = c("first", "all", "error"),
   fix_types = FALSE,
@@ -38,7 +38,7 @@ Not needed when \code{add_all = TRUE}.}
 \item{add_all}{Logical. If TRUE, every column in \code{lookup} except \code{lookup_id}
 is added, and \code{lookup_cols} is ignored. Default FALSE.}
 
-\item{new_cols}{Optional character vector of names for the added columns.
+\item{rename}{Optional character vector renaming the added columns.
 Either unnamed and the same length as \code{lookup_cols} (matched by position),
 or named, where the names are entries in \code{lookup_cols} and the values are
 their new names (allowing a subset to be renamed).}
@@ -80,10 +80,10 @@ with a message saying so.
 
 You can choose to simply add all columns by using \code{add_all = TRUE}.
 
-\code{new_cols} renames the incoming columns, either by position or by name so
+\code{rename} renames the incoming columns, either by position or by name so
 that only some are renamed. By position, give one name per column in
-\code{lookup_cols}: \code{new_cols = c("freq", "len")}. By name, give only the ones to
-rename, with the old name on the left: \code{new_cols = c(Log_Freq_HAL = "freq")}.
+\code{lookup_cols}: \code{rename = c("freq", "len")}. By name, give only the ones to
+rename, with the old name on the left: \code{rename = c(Log_Freq_HAL = "freq")}.
 
 \code{add_subset} restricts the lookup to a subset of rows -- for example \code{PoS == "verb"} -- written as an ordinary expression. Rows outside the subset are
 kept, with missing values in the new columns.
@@ -107,7 +107,7 @@ d2 <- add_values(d2, lookup = "ELP.csv", add_all = TRUE)
 # explicit, renamed, verbs only
 d2 <- add_values(d2, "Word", "ELP.csv", "Word",
                  c("Log_Freq_HAL", "Length"),
-                 new_cols   = c("freq", "len"),
+                 rename   = c("freq", "len"),
                  add_subset = PoS == "verb",
                  fix_types  = TRUE)
 }
