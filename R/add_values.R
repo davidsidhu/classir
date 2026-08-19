@@ -293,13 +293,15 @@ add_values <- function(d,
 
   n_matched <- sum(!is.na(idx))
   types     <- vapply(new, function(z) class(z)[1], character(1))
-  na_counts <- vapply(new, function(z) sum(is.na(z)), integer(1))
   complete  <- stats::complete.cases(out[, final_names, drop = FALSE])
 
   if (complete_only) {
     out <- out[complete, , drop = FALSE]
     rownames(out) <- NULL
   }
+
+  # counted after any row cut, so the summary describes what you are left with
+  na_counts <- vapply(out[final_names], function(z) sum(is.na(z)), integer(1))
 
   # --- report ---------------------------------------------------------------
   if (!quiet) {
@@ -322,8 +324,9 @@ add_values <- function(d,
           sep = "")
     }
     if (complete_only) {
-      cat(sprintf("  complete_only = TRUE: kept %d of %d rows.\n",
-                  sum(complete), length(complete)))
+      cat(sprintf("  complete_only = TRUE: kept %s of %s rows.\n",
+                  format(sum(complete), big.mark = ","),
+                  format(length(complete), big.mark = ",")))
     }
 
     cat(sprintf("  Added %d column%s:\n", length(types),
