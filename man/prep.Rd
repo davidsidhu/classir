@@ -9,6 +9,7 @@ prep(
   complete = NULL,
   subset,
   scale = NULL,
+  no_scale = NULL,
   ref = NULL,
   effects = NULL,
   rename = NULL,
@@ -28,7 +29,11 @@ values. Rows missing any of them are dropped.}
 you would inside \code{d[...]}, e.g. \code{pos == "noun" & freq > 1}. Applied after
 the missing-value cut and before anything else.}
 
-\item{scale}{Character or numeric: numeric columns to standardise.}
+\item{scale}{Character or numeric: numeric columns to standardise. \code{TRUE}
+standardises every numeric column.}
+
+\item{no_scale}{Character or numeric: columns never to standardise, even if
+\code{scale} would otherwise include them. Useful with \code{scale = TRUE}.}
 
 \item{ref}{Named character vector: the reference level for each factor, e.g.
 \code{c(PoS = "noun")}.}
@@ -67,9 +72,10 @@ set of observations.
 \code{subset = pos == "noun" & freq > 1}. It is applied after the missing-value
 cut, so any standardising happens on the rows that survive both.
 
-\code{scale} names the numeric columns to standardise. This happens after the row
-cut, so the means and SDs come from the rows that remain. Columns that were
-effects coded are never standardised.
+\code{scale} names the numeric columns to standardise, or \code{TRUE} for all of them.
+This happens after the row cut, so the means and SDs come from the rows that
+remain. \code{no_scale} names columns to leave alone, which is the easy way to
+standardise everything bar an id or a count: \verb{scale = TRUE, no_scale = "trial_number"}. Columns that were effects coded are never standardised.
 
 \code{ref} sets the reference level of a factor, written as
 \code{ref = c(PoS = "noun")}. Several can be set at once.
@@ -96,7 +102,8 @@ A report of what was done is printed unless \code{quiet = TRUE}.
 d <- prep(demo_words,
           complete = c("freq", "aoa", "concreteness"),
           subset   = pos != "adjective",
-          scale    = c("freq", "aoa", "concreteness"),
+          scale    = TRUE,
+          no_scale = "length",
           ref      = c(pos = "noun"),
           effects  = "sound_symbolic",
           rename   = c(concreteness = "conc"))

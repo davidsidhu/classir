@@ -14,9 +14,11 @@
 #' `subset = pos == "noun" & freq > 1`. It is applied after the missing-value
 #' cut, so any standardising happens on the rows that survive both.
 #'
-#' `scale` names the numeric columns to standardise. This happens after the row
-#' cut, so the means and SDs come from the rows that remain. Columns that were
-#' effects coded are never standardised.
+#' `scale` names the numeric columns to standardise, or `TRUE` for all of them.
+#' This happens after the row cut, so the means and SDs come from the rows that
+#' remain. `no_scale` names columns to leave alone, which is the easy way to
+#' standardise everything bar an id or a count: `scale = TRUE, no_scale =
+#' "trial_number"`. Columns that were effects coded are never standardised.
 #'
 #' `ref` sets the reference level of a factor, written as
 #' `ref = c(PoS = "noun")`. Several can be set at once.
@@ -44,7 +46,10 @@
 #' @param subset An unquoted expression selecting rows to keep, written the way
 #'   you would inside `d[...]`, e.g. `pos == "noun" & freq > 1`. Applied after
 #'   the missing-value cut and before anything else.
-#' @param scale Character or numeric: numeric columns to standardise.
+#' @param scale Character or numeric: numeric columns to standardise. `TRUE`
+#'   standardises every numeric column.
+#' @param no_scale Character or numeric: columns never to standardise, even if
+#'   `scale` would otherwise include them. Useful with `scale = TRUE`.
 #' @param ref Named character vector: the reference level for each factor, e.g.
 #'   `c(PoS = "noun")`.
 #' @param effects Character vector: two-level factors to effects code at
@@ -66,7 +71,8 @@
 #' d <- prep(demo_words,
 #'           complete = c("freq", "aoa", "concreteness"),
 #'           subset   = pos != "adjective",
-#'           scale    = c("freq", "aoa", "concreteness"),
+#'           scale    = TRUE,
+#'           no_scale = "length",
 #'           ref      = c(pos = "noun"),
 #'           effects  = "sound_symbolic",
 #'           rename   = c(concreteness = "conc"))
@@ -77,6 +83,7 @@ prep <- function(d,
                  complete = NULL,
                  subset,
                  scale = NULL,
+                 no_scale = NULL,
                  ref = NULL,
                  effects = NULL,
                  rename = NULL,
@@ -104,7 +111,14 @@ prep <- function(d,
   }
 
   complete <- as_names(complete, "complete")
-  scale_c  <- as_names(scale, "scale")
+  scale_c <- if (isTRUE(scale)) {
+    names(d)[vapply(d, is.numeric, logical(1))]
+  } else if (isFALSE(scale)) {
+    character(0)
+  } else {
+    as_names(scale, "scale")
+  }
+  no_scale_c <- as_names(no_scale, "no_scale")
   effects  <- as_names(effects, "effects")
   keep     <- as_names(keep, "keep")
   if (!is.null(ref))    as_names(names(ref), "ref")
@@ -207,7 +221,7 @@ prep <- function(d,
   }
 
   # --- 4. scaling -----------------------------------------------------------
-  scale_c <- setdiff(scale_c, effects)
+  scale_c <- setdiff(scale_c, c(effects, no_scale_c))
   if (length(scale_c) > 0L) {
     done <- character(0)
     for (v in scale_c) {
