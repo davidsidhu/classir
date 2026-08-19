@@ -302,27 +302,37 @@ add_values <- function(d,
 
   # --- report ---------------------------------------------------------------
   if (!quiet) {
-    message(sprintf("Matched %d of %d selected row(s) (%.1f%%).",
-                    n_matched, n_sel,
-                    if (n_sel > 0) 100 * n_matched / n_sel else 0))
+    cat("\nSUCCESS!\n")
+
+    cat(sprintf("  Matched %s of %s row(s).\n",
+                format(n_matched, big.mark = ","),
+                format(n_sel, big.mark = ",")))
+
     if (n_sel < n_before) {
-      message(sprintf("%d row(s) not selected by `add_subset`; left as NA.",
-                      n_before - n_sel))
+      cat(sprintf("  %d row(s) not selected by `add_subset`; left as NA.\n",
+                  n_before - n_sel))
     }
     if (multiple == "all" && nrow(out) != n_before) {
-      message(sprintf("multiple = \"all\": %d rows in, %d rows out.",
-                      n_before, nrow(out)))
+      cat(sprintf("  multiple = \"all\": %d rows in, %d rows out.\n",
+                  n_before, nrow(out)))
     }
     if (length(n_conv) > 0L) {
-      message("Converted to numeric: ", paste(n_conv, collapse = ", "))
+      cat("  Converted to numeric: ", paste(n_conv, collapse = ", "), "\n",
+          sep = "")
     }
-    message("Added columns (class, missing):")
-    message(paste0("  ", names(types), ": ", types, ", ", na_counts, " NA",
-                   collapse = "\n"))
     if (complete_only) {
-      message(sprintf("complete_only = TRUE: kept %d of %d rows.",
-                      sum(complete), length(complete)))
+      cat(sprintf("  complete_only = TRUE: kept %d of %d rows.\n",
+                  sum(complete), length(complete)))
     }
+
+    cat(sprintf("  Added %d column%s:\n", length(types),
+                if (length(types) == 1L) "" else "s"))
+    w <- max(nchar(names(types)))
+    for (i in seq_along(types)) {
+      cat(sprintf("    %-*s  %s, %s missing\n", w, names(types)[i], types[i],
+                  format(na_counts[i], big.mark = ",")))
+    }
+    cat("\n")
   }
 
   if (was_dt) data.table::setDT(out)
