@@ -1,6 +1,6 @@
 Package: classir
 Title: Tools for Preparing and Analysing Psychological Data
-Version: 0.0.0.9006
+Version: 0.0.0.9007
 Authors@R: 
     person("David", "Sidhu", 
            email = "david.sidhu@carleton.ca", 
