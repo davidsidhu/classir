@@ -18,7 +18,8 @@
 #' @param rare_prop For text columns, flag values whose character pattern
 #'   occurs in fewer than this proportion of the column. Default 0.01.
 #' @param factor_max Character columns with this many distinct values or fewer
-#'   are suggested as factors. Default 12. Set to 0 to skip.
+#'   are suggested as factors. Default `Inf`, so every character column is
+#'   suggested. Set a number to restrict it, or 0 to skip the check.
 #' @param unique_max Numeric columns with this many distinct values or fewer
 #'   are flagged as possibly categorical. Default 5. Set to 0 to skip.
 #' @param sentinels Numeric values commonly used as missing-value codes.
@@ -52,7 +53,7 @@ check_data <- function(d,
                        missing_prop = 0.2,
                        sd_cutoff = 5,
                        rare_prop = 0.01,
-                       factor_max = 12,
+                       factor_max = Inf,
                        unique_max = 5,
                        sentinels = c(-9999, -999, -99, -9, 999, 9999),
                        id = NULL,
@@ -168,10 +169,14 @@ check_data <- function(d,
         if (looks_numeric(z)) {
           to_num <- c(to_num, v)
           add(v, "type", "character, but all values parse as numbers")
-        } else if (factor_max > 0L && length(unique(chr)) <= factor_max) {
-          to_fac <- c(to_fac, v)
-          add(v, "type", sprintf("character with %d distinct values -- factor?",
-                                 length(unique(chr))))
+        } else {
+          k_lev <- length(unique(chr))
+          if (factor_max > 0L && k_lev <= factor_max) {
+            to_fac <- c(to_fac, v)
+            add(v, "type",
+                sprintf("character with %s distinct values -- factor?",
+                        format(k_lev, big.mark = ",")))
+          }
         }
       }
 

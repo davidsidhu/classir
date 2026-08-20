@@ -34,7 +34,10 @@
 #'   variable, in order of frequency. Any remaining levels are summarised on an
 #'   ellipsis row. Default 5, matching the five rows of a numeric block.
 #' @param factor_max Character columns with this many distinct values or fewer
-#'   are suggested as factors. Default 12. Independent of `max_levels`.
+#'   are suggested as factors. Default `Inf`, so every character column is
+#'   suggested -- a word or item column usually wants to be a factor too, since
+#'   that is what a random-effect grouping term needs. Set a number to restrict
+#'   the suggestion to columns with few levels. Independent of `max_levels`.
 #' @param examples Number of example values shown for near-unique columns --
 #'   those where almost every value occurs once, such as word lists or IDs.
 #'   Default 3.
@@ -67,7 +70,7 @@ look <- function(d,
                  cors = FALSE,
                  digits = 2,
                  max_levels = 5,
-                 factor_max = 12,
+                 factor_max = Inf,
                  examples = 3,
                  trunc = 22,
                  normality = TRUE,
@@ -146,10 +149,10 @@ look <- function(d,
       md <- stats::median(zz)
       rg <- range(zz)
 
-      put("Mean",   num(m),                        "Mean")
-      put("SD",     if (is.na(s)) "-" else num(s),  "SD")
       put("Min",    num(rg[1]),                     "Min")
       put("Median", num(md),                        "Median")
+      put("Mean",   num(m),                        "Mean")
+      put("SD",     if (is.na(s)) "-" else num(s),  "SD")
       put("Max",    num(rg[2]),                     "Max")
 
       sk <- kt <- NA_real_
@@ -220,7 +223,7 @@ look <- function(d,
   # --- render each block to lines -------------------------------------------
   # numeric statistics occupy fixed rows, so the same label sits at the same
   # height in every block; a variable without a Skew line leaves that row blank
-  num_slots  <- c("Mean", "SD", "Min", "Median", "Max", "Skew", "Kurt")
+  num_slots  <- c("Min", "Median", "Mean", "SD", "Max", "Skew", "Kurt")
   slot_order <- c(num_slots, "NA")
 
   # each block is rendered as its fixed statistic rows plus any free lines;

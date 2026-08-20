@@ -9,7 +9,7 @@ look(
   cors = FALSE,
   digits = 2,
   max_levels = 5,
-  factor_max = 12,
+  factor_max = Inf,
   examples = 3,
   trunc = 22,
   normality = TRUE,
@@ -33,7 +33,10 @@ variable, in order of frequency. Any remaining levels are summarised on an
 ellipsis row. Default 5, matching the five rows of a numeric block.}
 
 \item{factor_max}{Character columns with this many distinct values or fewer
-are suggested as factors. Default 12. Independent of \code{max_levels}.}
+are suggested as factors. Default \code{Inf}, so every character column is
+suggested -- a word or item column usually wants to be a factor too, since
+that is what a random-effect grouping term needs. Set a number to restrict
+the suggestion to columns with few levels. Independent of \code{max_levels}.}
 
 \item{examples}{Number of example values shown for near-unique columns --
 those where almost every value occurs once, such as word lists or IDs.

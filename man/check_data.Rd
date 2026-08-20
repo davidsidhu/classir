@@ -9,7 +9,7 @@ check_data(
   missing_prop = 0.2,
   sd_cutoff = 5,
   rare_prop = 0.01,
-  factor_max = 12,
+  factor_max = Inf,
   unique_max = 5,
   sentinels = c(-9999, -999, -99, -9, 999, 9999),
   id = NULL,
@@ -30,7 +30,8 @@ standard deviations from the mean. Default 5. Set to \code{Inf} to skip.}
 occurs in fewer than this proportion of the column. Default 0.01.}
 
 \item{factor_max}{Character columns with this many distinct values or fewer
-are suggested as factors. Default 12. Set to 0 to skip.}
+are suggested as factors. Default \code{Inf}, so every character column is
+suggested. Set a number to restrict it, or 0 to skip the check.}
 
 \item{unique_max}{Numeric columns with this many distinct values or fewer
 are flagged as possibly categorical. Default 5. Set to 0 to skip.}
