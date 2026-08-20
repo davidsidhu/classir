@@ -14,6 +14,7 @@ check_data(
   sentinels = c(-9999, -999, -99, -9, 999, 9999),
   id = NULL,
   examples = 3,
+  ask_drop = TRUE,
   quiet = FALSE
 )
 }
@@ -44,6 +45,9 @@ Default \code{c(-9999, -999, -99, -9, 999, 9999)}.}
 
 \item{examples}{How many example values to show per strange-cell flag.
 Default 3.}
+
+\item{ask_drop}{Logical. If TRUE (default) and the session is interactive,
+offer to drop any stray header rows that are found. Set FALSE in scripts.}
 
 \item{quiet}{Logical. If TRUE, return the issues without printing.}
 }

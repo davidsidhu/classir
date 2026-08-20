@@ -26,6 +26,8 @@
 #'   Flagged where they sit outside a column's range.
 #'   Default `c(-9999, -999, -99, -9, 999, 9999)`.
 #' @param id Optional column name to check for duplicate identifiers.
+#' @param ask_drop Logical. If TRUE (default) and the session is interactive,
+#'   offer to drop any stray header rows that are found. Set FALSE in scripts.
 #' @param examples How many example values to show per strange-cell flag.
 #'   Default 3.
 #' @param quiet Logical. If TRUE, return the issues without printing.
@@ -58,10 +60,12 @@ check_data <- function(d,
                        sentinels = c(-9999, -999, -99, -9, 999, 9999),
                        id = NULL,
                        examples = 3,
+                       ask_drop = TRUE,
                        quiet = FALSE) {
 
-  d_name <- deparse(substitute(d))
-  if (length(d_name) != 1L || make.names(d_name) != d_name) d_name <- "d"
+  d_name  <- deparse(substitute(d))
+  d_valid <- length(d_name) == 1L && make.names(d_name) == d_name
+  if (!d_valid) d_name <- "d"
 
   is_dt <- inherits(d, "data.table")
   d <- as.data.frame(d)
@@ -101,6 +105,26 @@ check_data <- function(d,
     }
     k <- sum(duplicated(d[[id]]))
     if (k > 0L) add(id, "duplicate ids", sprintf("%d repeated value(s)", k))
+  }
+
+  # stray header rows: a row whose cells repeat the column names, which is what
+  # a second file's header looks like after a careless rbind or paste
+  hdr_rows <- integer(0)
+  if (nrow(d) > 1L && ncol(d) >= 3L) {
+    nm <- tolower(trimws(names(d)))
+    hits <- vapply(seq_len(nrow(d)), function(i) {
+      cell <- tolower(trimws(as.character(unlist(d[i, ], use.names = FALSE))))
+      sum(!is.na(cell) & nzchar(cell) & cell %in% nm)
+    }, integer(1))
+    hdr_rows <- which(hits >= max(3L, ceiling(0.2 * ncol(d))))
+  }
+
+  if (length(hdr_rows) > 0L) {
+    add("(all)", "stray header row",
+        sprintf("row%s %s hold%s column names, not data",
+                if (length(hdr_rows) == 1L) "" else "s",
+                paste(format(hdr_rows, big.mark = ","), collapse = ", "),
+                if (length(hdr_rows) == 1L) "s" else ""))
   }
 
   # --- per-column checks ----------------------------------------------------
@@ -276,6 +300,31 @@ check_data <- function(d,
     }
 
     cat("All checks are heuristics -- a flag means worth a look, not wrong.\n")
+  }
+
+  if (length(hdr_rows) > 0L && ask_drop && interactive() && d_valid) {
+    cat("\n  Row", if (length(hdr_rows) == 1L) "" else "s", " ",
+        paste(format(hdr_rows, big.mark = ","), collapse = ", "),
+        " appear", if (length(hdr_rows) == 1L) "s" else "",
+        " to be a stray header rather than data:\n\n", sep = "")
+    print(utils::head(d[hdr_rows, seq_len(min(6L, ncol(d))), drop = FALSE]))
+    cat("\n  Type y to drop", if (length(hdr_rows) == 1L) " it" else " them",
+        ". To leave the data alone, leave blank\n  and press enter.\n\n",
+        sep = "")
+
+    if (tolower(substr(trimws(readline("  Selection: ")), 1, 1)) == "y") {
+      out <- d[-hdr_rows, , drop = FALSE]
+      rownames(out) <- NULL
+      if (is_dt) data.table::setDT(out)
+      assign(d_name, out, envir = parent.frame())
+      cat("\n  Dropped ", length(hdr_rows), " row",
+          if (length(hdr_rows) == 1L) "" else "s", ". The code for this was:\n\n",
+          sep = "")
+      cat("    ", d_name, " <- ", d_name, "[-c(",
+          paste(hdr_rows, collapse = ", "), "), ]\n\n", sep = "")
+    } else {
+      cat("\n  Left alone.\n\n")
+    }
   }
 
   invisible(list(issues = issue_tab, suggestions = suggestions))
