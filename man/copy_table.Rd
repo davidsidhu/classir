@@ -10,6 +10,7 @@ copy_table(
   p_nice = TRUE,
   names_nice = TRUE,
   rename = NULL,
+  row_order = NULL,
   drop_cols = NULL,
   file = NULL,
   row_name = "Term",
@@ -28,6 +29,10 @@ copy_table(
 
 \item{rename}{Named character vector relabelling terms, old name on the
 left, e.g. \code{c(PoS = "Part of Speech")}. Applied after \code{names_nice}.}
+
+\item{row_order}{Character vector putting the rows in the order you want,
+named as they are in the model rather than as \code{rename} relabels them. Terms
+you leave out keep their existing order at the end.}
 
 \item{drop_cols}{Character vector of columns to leave out, e.g.
 \code{c("t value", "df")}.}
@@ -62,8 +67,9 @@ predictor's terms are written out against their reference level, so
 \code{rename} relabels terms, with the old name on the left as elsewhere in the
 package: \code{rename = c(PoS = "Part of Speech")}.
 
-\code{drop_cols} removes columns you do not report, and \code{file} writes the table
-out instead of only copying it.
+\code{row_order} puts the rows in the order you want them, and \code{drop_cols}
+removes columns you do not report. \code{file} writes the table out instead of
+only copying it.
 }
 \details{
 Works with \code{lm}, \code{glm}, \code{lmer} and \code{lmerTest} models, \code{anova} tables, and
@@ -78,7 +84,8 @@ needs \code{xclip} or \code{xsel}; without one, the text is printed to copy by h
 m <- lm(iconicity ~ freq * pos, data = demo_words)
 copy_table(m)
 
-copy_table(m, drop_cols = "t value",
+copy_table(m, row_order = c("freq", "pos"),
+           drop_cols = "t value",
            rename = c(freq = "Frequency", pos = "Part of Speech"))
 
 copy_table(m, file = "table1.csv")

@@ -19,8 +19,9 @@
 #' `rename` relabels terms, with the old name on the left as elsewhere in the
 #' package: `rename = c(PoS = "Part of Speech")`.
 #'
-#' `drop_cols` removes columns you do not report, and `file` writes the table
-#' out instead of only copying it.
+#' `row_order` puts the rows in the order you want them, and `drop_cols`
+#' removes columns you do not report. `file` writes the table out instead of
+#' only copying it.
 #'
 #' @details
 #' Works with `lm`, `glm`, `lmer` and `lmerTest` models, `anova` tables, and
@@ -37,6 +38,9 @@
 #' @param names_nice Logical. If TRUE (default), tidy the term names.
 #' @param rename Named character vector relabelling terms, old name on the
 #'   left, e.g. `c(PoS = "Part of Speech")`. Applied after `names_nice`.
+#' @param row_order Character vector putting the rows in the order you want,
+#'   named as they are in the model rather than as `rename` relabels them. Terms
+#'   you leave out keep their existing order at the end.
 #' @param drop_cols Character vector of columns to leave out, e.g.
 #'   `c("t value", "df")`.
 #' @param file Optional path to write the table to. `.csv` is written
@@ -52,7 +56,8 @@
 #' m <- lm(iconicity ~ freq * pos, data = demo_words)
 #' copy_table(m)
 #'
-#' copy_table(m, drop_cols = "t value",
+#' copy_table(m, row_order = c("freq", "pos"),
+#'            drop_cols = "t value",
 #'            rename = c(freq = "Frequency", pos = "Part of Speech"))
 #'
 #' copy_table(m, file = "table1.csv")
@@ -64,6 +69,7 @@ copy_table <- function(x,
                        p_nice = TRUE,
                        names_nice = TRUE,
                        rename = NULL,
+                       row_order = NULL,
                        drop_cols = NULL,
                        file = NULL,
                        row_name = "Term",
@@ -105,6 +111,27 @@ copy_table <- function(x,
       txt <- formatC(v, format = "f", digits = digits)   # never scientific
       txt[is.na(v)] <- ""
       out[[j]] <- trimws(txt)
+    }
+  }
+
+  # --- put the rows in order ------------------------------------------------
+  if (!is.null(row_order)) {
+    rn0 <- rownames(tab)
+    if (is.null(rn0)) {
+      warning("`row_order` needs row names, and this table has none.",
+              call. = FALSE)
+    } else {
+      missing_rows <- setdiff(row_order, rn0)
+      if (length(missing_rows) > 0L) {
+        warning("`row_order` names term(s) not in the table: ",
+                paste(missing_rows, collapse = ", "), ". Terms are: ",
+                paste(rn0, collapse = ", "), call. = FALSE)
+      }
+      first <- intersect(row_order, rn0)          # in the order asked for
+      rest  <- setdiff(rn0, first)                # everything else, as it was
+      idx   <- match(c(first, rest), rn0)
+      tab   <- tab[idx, , drop = FALSE]
+      out   <- out[idx, , drop = FALSE]
     }
   }
 
