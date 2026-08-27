@@ -7,6 +7,7 @@
 converge(
   m,
   data = NULL,
+  reml = TRUE,
   optimizer = "bobyqa",
   maxfun = 2e+05,
   singular_fails = TRUE,
@@ -18,10 +19,17 @@ converge(
 )
 }
 \arguments{
-\item{m}{A fitted \code{lmerMod} (or \code{lmerModLmerTest}) object.}
+\item{m}{A fitted \code{lmerMod} (or \code{lmerModLmerTest}) object, or a formula --
+the same one you would give \code{lme4::lmer()}. A formula is fitted first with
+\code{optimizer} and \code{maxfun}, so the first line of output is always the result
+of that initial fit.}
 
-\item{data}{The data the model was fitted to. If \code{NULL} (default), it is
-recovered from the model call.}
+\item{data}{The data to fit or refit on. Required when \code{m} is a formula;
+recovered from the model call when \code{m} is already a fitted model.}
+
+\item{reml}{Logical. Used only when \code{m} is a formula: fit with REML
+(default TRUE) or maximum likelihood. Ignored when \code{m} is already a fitted
+model, whose own REML setting is read instead.}
 
 \item{optimizer}{Optimizer to try at step 1. Default \code{"bobyqa"}.}
 
@@ -85,6 +93,10 @@ fix.
 m1 <- lmer(RT ~ Iconicity * Freq + (1 + Iconicity | Subject) +
                                    (1 + Freq | Item), data = d)
 m2 <- converge(m1)
+
+# or hand it the formula directly
+m2 <- converge(RT ~ Iconicity * Freq + (1 + Iconicity | Subject) +
+                                       (1 + Freq | Item), data = d)
 }
 
 }

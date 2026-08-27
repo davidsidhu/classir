@@ -29,9 +29,12 @@
 #' from separation or predictor scaling, which pruning random slopes will not
 #' fix.
 #'
-#' @param m A fitted `lmerMod` (or `lmerModLmerTest`) object.
-#' @param data The data the model was fitted to. If `NULL` (default), it is
-#'   recovered from the model call.
+#' @param m A fitted `lmerMod` (or `lmerModLmerTest`) object, or a formula --
+#'   the same one you would give `lme4::lmer()`. A formula is fitted first with
+#'   `optimizer` and `maxfun`, so the first line of output is always the result
+#'   of that initial fit.
+#' @param data The data to fit or refit on. Required when `m` is a formula;
+#'   recovered from the model call when `m` is already a fitted model.
 #' @param optimizer Optimizer to try at step 1. Default `"bobyqa"`.
 #' @param maxfun Iteration limit to try at step 1. Default 2e5.
 #' @param singular_fails Logical. If TRUE (default), a singular fit counts as a
@@ -50,16 +53,25 @@
 #' @param verbose Logical. If TRUE (default), report each step.
 #' @return The converged model, or the last model tried if nothing worked.
 #'
+#' @param reml Logical. Used only when `m` is a formula: fit with REML
+#'   (default TRUE) or maximum likelihood. Ignored when `m` is already a fitted
+#'   model, whose own REML setting is read instead.
+#'
 #' @examples
 #' \dontrun{
 #' m1 <- lmer(RT ~ Iconicity * Freq + (1 + Iconicity | Subject) +
 #'                                    (1 + Freq | Item), data = d)
 #' m2 <- converge(m1)
+#'
+#' # or hand it the formula directly
+#' m2 <- converge(RT ~ Iconicity * Freq + (1 + Iconicity | Subject) +
+#'                                        (1 + Freq | Item), data = d)
 #' }
 #'
 #' @export
 converge <- function(m,
                      data = NULL,
+                     reml = TRUE,
                      optimizer = "bobyqa",
                      maxfun = 2e5,
                      singular_fails = TRUE,
@@ -74,8 +86,47 @@ converge <- function(m,
   if (!requireNamespace("lme4", quietly = TRUE)) {
     stop("`converge()` requires the 'lme4' package.", call. = FALSE)
   }
+
+  log <- character(0)
+  say <- function(...) {
+    txt <- paste0(...)
+    log <<- c(log, txt)
+    if (verbose) message(txt)
+  }
+
+  # a formula gets fitted first, with the same optimizer settings the rest of
+  # the function would try in step 1 -- so the log always starts from a real
+  # attempt rather than silently doing the fit no one saw
+  skip_step1 <- FALSE
+
+  if (inherits(m, "formula")) {
+    if (is.null(data)) {
+      stop("`data` is required when `m` is a formula.", call. = FALSE)
+    }
+    say("Fitting the formula with optimizer = '", optimizer,
+        "', maxfun = ", format(maxfun, scientific = FALSE), ".")
+
+    ctrl <- lme4::lmerControl(optimizer = optimizer,
+                              optCtrl = list(maxfun = maxfun))
+    m <- tryCatch(
+      lme4::lmer(m, data = data, control = ctrl, REML = reml),
+      error = function(e) {
+        stop("Could not fit that formula: ", conditionMessage(e),
+             call. = FALSE)
+      }
+    )
+
+    if (conv_ok(m, singular_fails)) {
+      say("  Converged on the first fit.")
+      return(converge_out(m, log, verbose, p_values))
+    }
+    say("  Still not converging.")
+    skip_step1 <- TRUE   # step 1 would just repeat the fit above
+  }
+
   if (!inherits(m, "merMod")) {
-    stop("`m` must be a model fitted with lmer().", call. = FALSE)
+    stop("`m` must be a model fitted with lmer(), or a formula.",
+         call. = FALSE)
   }
   if (inherits(m, "glmerMod")) {
     fam <- tryCatch(stats::family(m)$family, error = function(e) NULL)
@@ -85,13 +136,6 @@ converge <- function(m,
          ", and refitting it with lmer()\n",
          "  would silently treat the outcome as continuous.",
          call. = FALSE)
-  }
-
-  log <- character(0)
-  say <- function(...) {
-    txt <- paste0(...)
-    log <<- c(log, txt)
-    if (verbose) message(txt)
   }
 
   # --- recover the data -----------------------------------------------------
@@ -117,16 +161,24 @@ converge <- function(m,
   }
 
   # --- step 1: optimizer ----------------------------------------------------
-  say("Step 1: refitting with optimizer = '", optimizer,
-      "', maxfun = ", format(maxfun, scientific = FALSE), ".")
+  if (skip_step1) {
+    say("Step 1: already tried above with these settings; moving on.")
+    fit <- m
+  } else {
+    say("Step 1: refitting with optimizer = '", optimizer,
+        "', maxfun = ", format(maxfun, scientific = FALSE), ".")
 
-  fit <- try_fit(orig_form, data, optimizer, maxfun, use_reml, decor = FALSE)
+    fit <- try_fit(orig_form, data, optimizer, maxfun, use_reml, decor = FALSE)
 
-  if (!is.null(fit) && conv_ok(fit, singular_fails)) {
-    say("  Converged.")
-    return(converge_out(fit, log, verbose, p_values))
+    if (!is.null(fit) && conv_ok(fit, singular_fails)) {
+      say("  Converged.")
+      return(converge_out(fit, log, verbose, p_values))
+    }
+    say(if (is.null(fit)) "  Refit failed." else "  Still not converging.")
   }
-  say(if (is.null(fit)) "  Refit failed." else "  Still not converging.")
+
+  bars  <- bars_of(orig_form)
+  fixed <- deparse_one(lme4::nobars(orig_form))
 
   # --- step 2: drop correlations --------------------------------------------
   say("Step 2: dropping intercept-slope correlations (||, via afex::lmer_alt).")
@@ -135,10 +187,8 @@ converge <- function(m,
     stop("Dropping correlations requires the 'afex' package.", call. = FALSE)
   }
 
-  bars   <- bars_of(orig_form)
-  fixed  <- deparse_one(lme4::nobars(orig_form))
-  decor  <- sub("\\|", "||", bars)
-  form2  <- build_form(fixed, decor)
+  decor <- sub("\\|", "||", bars)
+  form2 <- build_form(fixed, decor)
 
   fit <- try_fit(form2, data, optimizer, maxfun, use_reml, decor = TRUE)
 
