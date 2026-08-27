@@ -187,7 +187,7 @@ converge <- function(m,
     stop("Dropping correlations requires the 'afex' package.", call. = FALSE)
   }
 
-  decor <- sub("\\|", "||", bars)
+  decor <- decor_bars(bars)
   form2 <- build_form(fixed, decor)
 
   fit <- try_fit(form2, data, optimizer, maxfun, use_reml, decor = TRUE)
@@ -308,6 +308,18 @@ split_bar <- function(bar) {
   )
 
   list(terms = terms, group = group, double = grepl("\\|\\|", bar))
+}
+
+
+# Internal: double a bar's | to || so lme4/afex drop its correlations. Bars
+# with only an intercept -- (1 | g) -- are left with a single |, because there
+# is no correlation to remove and afex::lmer_alt() cannot parse a degenerate
+# (1 || g) term.
+decor_bars <- function(bars) {
+  vapply(bars, function(b) {
+    sb <- split_bar(b)
+    if (length(sb$terms) == 0L) b else sub("\\|", "||", b)
+  }, character(1), USE.NAMES = FALSE)
 }
 
 
