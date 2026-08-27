@@ -171,6 +171,11 @@ look <- function(d,
 
       if (constant) put("", "All values identical!", right = FALSE)
 
+      # a 0/1 numeric column is almost always a coded factor, not a quantity
+      if (!constant && all(zz %in% c(0, 1))) {
+        to_fac <- c(to_fac, v)
+      }
+
       out[[v]] <- list(class = class(z)[1], n = length(zz), na = n_na,
                        mean = m, sd = s, median = md,
                        min = rg[1], max = rg[2], skew = sk, kurtosis = kt)
