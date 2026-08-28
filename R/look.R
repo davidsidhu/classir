@@ -169,7 +169,9 @@ look <- function(d,
         }
       }
 
-      if (constant) put("", "All values identical!", right = FALSE)
+      if (constant) {
+        put("", "All values identical!", right = FALSE, flush = TRUE)
+      }
 
       # a 0/1 numeric column is almost always a coded factor, not a quantity
       if (!constant && all(zz %in% c(0, 1))) {
