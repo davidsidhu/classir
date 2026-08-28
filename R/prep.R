@@ -323,12 +323,13 @@ prep <- function(d,
 # Internal: offer to convert character columns that hold only numbers
 convert_prompt <- function(d, cand) {
 
-  cat("\nThese columns are text but hold only numbers:\n    ")
-  cat(paste(sprintf("%d: %s", seq_along(cand), cand), collapse = "    "),
+  cat("\nThese columns are text but hold only numbers. They can be",
+      "converted to\nnumeric:\n\n", sep = " ")
+  cat(paste(sprintf("    %d: %s", seq_along(cand), cand), collapse = "\n"),
       "\n\n", sep = "")
-  cat("  Type numbers of variables you want to convert separated by commas\n",
-      "  (e.g. 1, 3), or \"all\" to convert all. To proceed without any\n",
-      "  conversions, leave blank and press enter.\n\n", sep = "")
+  cat("  Type numbers of variables you want to convert to numeric,",
+      "separated by\n  commas (e.g. 1, 3), or \"all\" to convert all.",
+      "To proceed without any\n  conversions, leave blank and press enter.\n\n")
 
   raw <- trimws(readline("  Selection: "))
 
