@@ -14,6 +14,7 @@ copy_table(
   drop_cols = NULL,
   file = NULL,
   row_name = "Term",
+  part = c("fixed", "random", "both"),
   quiet = FALSE
 )
 }
@@ -44,6 +45,17 @@ comma-separated, anything else tab-separated.}
 
 \item{row_name}{Name for the column holding the row names. Default \code{"Term"}.
 \code{NULL} leaves row names out.}
+
+\item{part}{Which part of a mixed model to copy. \code{"fixed"} (default) is the
+fixed effects table, \code{"random"} the variance components, and \code{"both"}
+stacks the random effects underneath the fixed ones, separated by a blank
+line -- the two have different columns, so they cannot be a single
+rectangular table. \code{"random"} and \code{"both"} need a mixed model.
+
+The random effects table gives variance (\code{s2}) only, with the
+intercept-slope correlation (\code{r}) folded onto the slope's own row rather
+than given a row of its own. Standard deviations are left out; take the
+square root if you want them.}
 
 \item{quiet}{Logical. If TRUE, don't print the table that was copied.}
 }
@@ -91,6 +103,10 @@ copy_table(m, row_order = c("freq", "pos"),
            rename = c(freq = "Frequency", pos = "Part of Speech"))
 
 copy_table(m, file = "table1.csv")
+
+# variance components, or both tables at once
+copy_table(m, part = "random")
+copy_table(m, part = "both")
 }
 
 }

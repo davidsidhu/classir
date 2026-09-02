@@ -49,6 +49,16 @@
 #'   comma-separated, anything else tab-separated.
 #' @param row_name Name for the column holding the row names. Default `"Term"`.
 #'   `NULL` leaves row names out.
+#' @param part Which part of a mixed model to copy. `"fixed"` (default) is the
+#'   fixed effects table, `"random"` the variance components, and `"both"`
+#'   stacks the random effects underneath the fixed ones, separated by a blank
+#'   line -- the two have different columns, so they cannot be a single
+#'   rectangular table. `"random"` and `"both"` need a mixed model.
+#'
+#'   The random effects table gives variance (`s2`) only, with the
+#'   intercept-slope correlation (`r`) folded onto the slope's own row rather
+#'   than given a row of its own. Standard deviations are left out; take the
+#'   square root if you want them.
 #' @param quiet Logical. If TRUE, don't print the table that was copied.
 #'
 #' @return Invisibly, the formatted data frame.
@@ -63,6 +73,10 @@
 #'            rename = c(freq = "Frequency", pos = "Part of Speech"))
 #'
 #' copy_table(m, file = "table1.csv")
+#'
+#' # variance components, or both tables at once
+#' copy_table(m, part = "random")
+#' copy_table(m, part = "both")
 #' }
 #'
 #' @export
@@ -75,10 +89,20 @@ copy_table <- function(x,
                        drop_cols = NULL,
                        file = NULL,
                        row_name = "Term",
+                       part = c("fixed", "random", "both"),
                        quiet = FALSE) {
 
+  part <- match.arg(part)
+
+  if (part != "fixed" && !inherits(x, "merMod")) {
+    stop("`part = \"", part, "\"` needs a mixed model; this is a ",
+         class(x)[1], ".", call. = FALSE)
+  }
+
   # --- get a table out of whatever was passed -------------------------------
-  tab <- if (inherits(x, c("lm", "glm", "merMod", "lmerModLmerTest"))) {
+  tab <- if (part == "random") {
+    random_table(x, digits, names_nice, factor_levels(x))
+  } else if (inherits(x, c("lm", "glm", "merMod", "lmerModLmerTest"))) {
     stats::coef(summary(x))
   } else if (inherits(x, c("summary.lm", "summary.merMod"))) {
     stats::coef(x)
@@ -182,10 +206,25 @@ copy_table <- function(x,
                  apply(out, 1, paste, collapse = "\t")),
                collapse = "\n")
 
+  # "both" stacks the random effects underneath, separated by a blank line --
+  # the two have different columns, so they cannot be one rectangular table
+  rand_out <- NULL
+  if (part == "both") {
+    rand_out <- random_table(x, digits, names_nice, factor_levels(x))
+    txt <- paste(c(txt, "",
+                   paste(names(rand_out), collapse = "\t"),
+                   apply(rand_out, 1, paste, collapse = "\t")),
+                 collapse = "\n")
+  }
+
   ok <- write_clipboard(txt)
 
   if (!quiet) {
     print(out, row.names = FALSE)
+    if (!is.null(rand_out)) {
+      cat("\nRandom effects\n")
+      print(rand_out, row.names = FALSE)
+    }
     if (ok) {
       cat("\nCopied. Paste straight into Excel.\n")
     } else {
@@ -200,18 +239,63 @@ copy_table <- function(x,
 }
 
 
+# Internal: the variance components of a mixed model, as a flat table.
+# as.data.frame(VarCorr()) gives one row per variance and one per correlation;
+# a correlation row has var2 filled in, and the residual row has neither.
+random_table <- function(x, digits = 2, names_nice = TRUE, flev = list()) {
+  vc <- as.data.frame(lme4::VarCorr(x))
+
+  is_cor <- !is.na(vc$var2)
+  var_rows <- vc[!is_cor, , drop = FALSE]
+
+  # a variance row is labelled "Group Term Intercept" or "Group Term Slope";
+  # a correlation row is folded onto the slope row it belongs to
+  label <- vapply(seq_len(nrow(var_rows)), function(i) {
+    g <- var_rows$grp[i]
+    v <- var_rows$var1[i]
+    if (is.na(v)) return("Residual")
+    if (identical(v, "(Intercept)")) return(paste(g, "Intercept"))
+    nm <- if (names_nice) nice_terms(v, flev) else v
+    paste(g, nm, "Slope")
+  }, character(1))
+
+  # the correlation belonging to each slope, matched on group and term
+  r <- rep(NA_real_, nrow(var_rows))
+  for (i in seq_len(nrow(var_rows))) {
+    if (is.na(var_rows$var1[i]) || identical(var_rows$var1[i], "(Intercept)")) {
+      next
+    }
+    hit <- is_cor & vc$grp == var_rows$grp[i] &
+      (vc$var1 == var_rows$var1[i] | vc$var2 == var_rows$var1[i])
+    if (any(hit)) r[i] <- vc$sdcor[which(hit)[1]]
+  }
+
+  out <- data.frame(`Random Effect` = label,
+                    s2 = trimws(formatC(var_rows$vcov, format = "f",
+                                        digits = digits)),
+                    r  = ifelse(is.na(r), "",
+                                sub("^(-?)0\\.", "\\1.",
+                                    trimws(formatC(r, format = "f",
+                                                   digits = digits)))),
+                    check.names = FALSE, stringsAsFactors = FALSE)
+  out
+}
+
+
 # Internal: p-values as a paper would write them -- stars, "< .001", and no
 # zero before the decimal point
 nice_p <- function(v, digits) {
   cutoff <- 10^(-digits)
 
-  txt <- formatC(v, format = "f", digits = digits)
+  # trim first: formatC pads to a common width, and leading spaces would stop
+  # the anchored substitution below from removing the zero
+  txt <- trimws(formatC(v, format = "f", digits = digits))
   txt <- sub("^(-?)0\\.", "\\1.", txt)                    # .023, not 0.023
 
   small <- !is.na(v) & v < cutoff
   txt[small] <- paste0("< ", sub("^0\\.", ".",
-                                 formatC(cutoff, format = "f",
-                                         digits = digits)))
+                                 trimws(formatC(cutoff, format = "f",
+                                                digits = digits))))
 
   star <- rep("", length(v))
   star[!is.na(v) & v < 0.05]  <- "*"
