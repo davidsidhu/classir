@@ -7,8 +7,8 @@
 #' can be crossed, giving one column per combination.
 #'
 #' @param d A data.frame or data.table.
-#' @param by Character: one or two grouping column names.
 #' @param vars Integer or character: columns to summarise (e.g. `5:12`).
+#' @param by Character: one or two grouping column names.
 #' @param var_name Name of the variable column in the exported table. Default
 #'   `"Dimension"`.
 #' @param digits Decimal places for means and SDs. Default 2.
@@ -25,14 +25,14 @@
 #'
 #' @examples
 #' \dontrun{
-#' by_group(d, "FriendCond", "Response")
-#' by_group(d, c("FriendCond", "WordType"), c("RT", "Accuracy"))
+#' by_group(d, "Response", "FriendCond")
+#' by_group(d, c("RT", "Accuracy"), c("FriendCond", "WordType"))
 #' }
 #'
 #' @export
 by_group <- function(d,
-                     by,
                      vars,
+                     by,
                      var_name = "Dimension",
                      digits = 2,
                      sep = ": ",

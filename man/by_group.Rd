@@ -6,8 +6,8 @@
 \usage{
 by_group(
   d,
-  by,
   vars,
+  by,
   var_name = "Dimension",
   digits = 2,
   sep = ": ",
@@ -19,9 +19,9 @@ by_group(
 \arguments{
 \item{d}{A data.frame or data.table.}
 
-\item{by}{Character: one or two grouping column names.}
-
 \item{vars}{Integer or character: columns to summarise (e.g. \code{5:12}).}
+
+\item{by}{Character: one or two grouping column names.}
 
 \item{var_name}{Name of the variable column in the exported table. Default
 \code{"Dimension"}.}
@@ -52,8 +52,8 @@ can be crossed, giving one column per combination.
 }
 \examples{
 \dontrun{
-by_group(d, "FriendCond", "Response")
-by_group(d, c("FriendCond", "WordType"), c("RT", "Accuracy"))
+by_group(d, "Response", "FriendCond")
+by_group(d, c("RT", "Accuracy"), c("FriendCond", "WordType"))
 }
 
 }
