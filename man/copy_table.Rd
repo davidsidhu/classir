@@ -15,6 +15,7 @@ copy_table(
   file = NULL,
   row_name = "Term",
   part = c("fixed", "random", "both"),
+  re_stat = c("sd", "variance"),
   quiet = FALSE
 )
 }
@@ -52,10 +53,13 @@ stacks the random effects underneath the fixed ones, separated by a blank
 line -- the two have different columns, so they cannot be a single
 rectangular table. \code{"random"} and \code{"both"} need a mixed model.
 
-The random effects table gives variance (\code{s2}) only, with the
-intercept-slope correlation (\code{r}) folded onto the slope's own row rather
-than given a row of its own. Standard deviations are left out; take the
-square root if you want them.}
+The random effects table gives one spread column, set by \code{re_stat}, with
+the intercept-slope correlation (\code{r}) folded onto the slope's own row
+rather than given a row of its own.}
+
+\item{re_stat}{Which spread statistic the random effects table reports,
+\code{"sd"} (default) or \code{"variance"}. SD is on the same scale as the outcome,
+so it is the easier of the two to read against the model's estimates.}
 
 \item{quiet}{Logical. If TRUE, don't print the table that was copied.}
 }

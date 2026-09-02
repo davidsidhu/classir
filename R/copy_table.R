@@ -55,10 +55,12 @@
 #'   line -- the two have different columns, so they cannot be a single
 #'   rectangular table. `"random"` and `"both"` need a mixed model.
 #'
-#'   The random effects table gives variance (`s2`) only, with the
-#'   intercept-slope correlation (`r`) folded onto the slope's own row rather
-#'   than given a row of its own. Standard deviations are left out; take the
-#'   square root if you want them.
+#'   The random effects table gives one spread column, set by `re_stat`, with
+#'   the intercept-slope correlation (`r`) folded onto the slope's own row
+#'   rather than given a row of its own.
+#' @param re_stat Which spread statistic the random effects table reports,
+#'   `"sd"` (default) or `"variance"`. SD is on the same scale as the outcome,
+#'   so it is the easier of the two to read against the model's estimates.
 #' @param quiet Logical. If TRUE, don't print the table that was copied.
 #'
 #' @return Invisibly, the formatted data frame.
@@ -90,9 +92,11 @@ copy_table <- function(x,
                        file = NULL,
                        row_name = "Term",
                        part = c("fixed", "random", "both"),
+                       re_stat = c("sd", "variance"),
                        quiet = FALSE) {
 
-  part <- match.arg(part)
+  part    <- match.arg(part)
+  re_stat <- match.arg(re_stat)
 
   if (part != "fixed" && !inherits(x, "merMod")) {
     stop("`part = \"", part, "\"` needs a mixed model; this is a ",
@@ -101,7 +105,7 @@ copy_table <- function(x,
 
   # --- get a table out of whatever was passed -------------------------------
   tab <- if (part == "random") {
-    random_table(x, digits, names_nice, factor_levels(x))
+    random_table(x, digits, names_nice, factor_levels(x), re_stat)
   } else if (inherits(x, c("lm", "glm", "merMod", "lmerModLmerTest"))) {
     stats::coef(summary(x))
   } else if (inherits(x, c("summary.lm", "summary.merMod"))) {
@@ -210,7 +214,8 @@ copy_table <- function(x,
   # the two have different columns, so they cannot be one rectangular table
   rand_out <- NULL
   if (part == "both") {
-    rand_out <- random_table(x, digits, names_nice, factor_levels(x))
+    rand_out <- random_table(x, digits, names_nice, factor_levels(x),
+                             re_stat)
     txt <- paste(c(txt, "",
                    paste(names(rand_out), collapse = "\t"),
                    apply(rand_out, 1, paste, collapse = "\t")),
@@ -242,7 +247,9 @@ copy_table <- function(x,
 # Internal: the variance components of a mixed model, as a flat table.
 # as.data.frame(VarCorr()) gives one row per variance and one per correlation;
 # a correlation row has var2 filled in, and the residual row has neither.
-random_table <- function(x, digits = 2, names_nice = TRUE, flev = list()) {
+random_table <- function(x, digits = 2, names_nice = TRUE, flev = list(),
+                         re_stat = c("sd", "variance")) {
+  re_stat <- match.arg(re_stat)
   vc <- as.data.frame(lme4::VarCorr(x))
 
   is_cor <- !is.na(vc$var2)
@@ -270,14 +277,18 @@ random_table <- function(x, digits = 2, names_nice = TRUE, flev = list()) {
     if (any(hit)) r[i] <- vc$sdcor[which(hit)[1]]
   }
 
+  stat_val <- if (re_stat == "sd") var_rows$sdcor else var_rows$vcov
+  stat_nm  <- if (re_stat == "sd") "SD" else "s2"
+
   out <- data.frame(`Random Effect` = label,
-                    s2 = trimws(formatC(var_rows$vcov, format = "f",
-                                        digits = digits)),
+                    stat = trimws(formatC(stat_val, format = "f",
+                                          digits = digits)),
                     r  = ifelse(is.na(r), "",
                                 sub("^(-?)0\\.", "\\1.",
                                     trimws(formatC(r, format = "f",
                                                    digits = digits)))),
                     check.names = FALSE, stringsAsFactors = FALSE)
+  names(out)[2] <- stat_nm
   out
 }
 
