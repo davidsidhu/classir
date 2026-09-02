@@ -6,7 +6,7 @@
 \usage{
 by_group(
   d,
-  group_cols,
+  by,
   vars,
   var_name = "Dimension",
   digits = 2,
@@ -19,7 +19,7 @@ by_group(
 \arguments{
 \item{d}{A data.frame or data.table.}
 
-\item{group_cols}{Character: one or two grouping column names.}
+\item{by}{Character: one or two grouping column names.}
 
 \item{vars}{Integer or character: columns to summarise (e.g. \code{5:12}).}
 
@@ -44,10 +44,11 @@ variable per group). Printing is handled by a custom method; access the
 elements directly to export them.
 }
 \description{
-For looking at values of a numeric variable by group (e.g., average reaction
-time by age group). Builds a table with one row per variable and one column
-per group, each cell formatted as "M (SD)". Two grouping variables can be
-crossed, giving one column per combination.
+For looking at values of a variable by group (e.g., average reaction time by
+age group). Builds a table with one column per group. A numeric variable
+gets one row, each cell formatted as "M (SD)"; a categorical variable gets a
+row per level, each cell holding that level's count. Two grouping variables
+can be crossed, giving one column per combination.
 }
 \examples{
 \dontrun{

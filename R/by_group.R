@@ -1,12 +1,13 @@
 #' Mean and SD table by group
 #'
-#' For looking at values of a numeric variable by group (e.g., average reaction
-#' time by age group). Builds a table with one row per variable and one column
-#' per group, each cell formatted as "M (SD)". Two grouping variables can be
-#' crossed, giving one column per combination.
+#' For looking at values of a variable by group (e.g., average reaction time by
+#' age group). Builds a table with one column per group. A numeric variable
+#' gets one row, each cell formatted as "M (SD)"; a categorical variable gets a
+#' row per level, each cell holding that level's count. Two grouping variables
+#' can be crossed, giving one column per combination.
 #'
 #' @param d A data.frame or data.table.
-#' @param group_cols Character: one or two grouping column names.
+#' @param by Character: one or two grouping column names.
 #' @param vars Integer or character: columns to summarise (e.g. `5:12`).
 #' @param var_name Name of the variable column in the exported table. Default
 #'   `"Dimension"`.
@@ -30,7 +31,7 @@
 #'
 #' @export
 by_group <- function(d,
-                     group_cols,
+                     by,
                      vars,
                      var_name = "Dimension",
                      digits = 2,
@@ -43,10 +44,10 @@ by_group <- function(d,
   d <- as.data.frame(d)
 
   # --- grouping columns -----------------------------------------------------
-  if (!is.character(group_cols) || !length(group_cols) %in% 1:2) {
-    stop("`group_cols` must be one or two column names.", call. = FALSE)
+  if (!is.character(by) || !length(by) %in% 1:2) {
+    stop("`by` must be one or two column names.", call. = FALSE)
   }
-  missing_grp <- setdiff(group_cols, names(d))
+  missing_grp <- setdiff(by, names(d))
   if (length(missing_grp) > 0L) {
     stop("Grouping column(s) not found in `d`: ",
          paste(missing_grp, collapse = ", "), call. = FALSE)
@@ -58,40 +59,56 @@ by_group <- function(d,
   if (length(vars_chr) == 0L) {
     stop("No valid columns found in `vars`.", call. = FALSE)
   }
-  vars_chr <- setdiff(vars_chr, group_cols)
+  vars_chr <- setdiff(vars_chr, by)
 
   is_num <- vapply(d[vars_chr], is.numeric, logical(1))
-  if (any(!is_num)) {
-    warning("Dropping non-numeric columns in `vars`: ",
-            paste(vars_chr[!is_num], collapse = ", "), call. = FALSE)
-    vars_chr <- vars_chr[is_num]
-  }
   if (length(vars_chr) == 0L) {
-    stop("All columns in `vars` were non-numeric.", call. = FALSE)
+    stop("No columns left in `vars`.", call. = FALSE)
   }
 
+  # a numeric variable gets one row of M (SD); a categorical one gets a row per
+  # level, holding counts. rows is what the table is actually built from.
+  rows_spec <- list()
+  for (i in seq_along(vars_chr)) {
+    v <- vars_chr[i]
+    if (is_num[i]) {
+      rows_spec[[length(rows_spec) + 1L]] <-
+        list(var = v, level = NA_character_, label = v)
+    } else {
+      z  <- d[[v]]
+      lv <- if (is.factor(z)) levels(droplevels(z)) else
+        sort(unique(as.character(z[!is.na(z)])))
+      for (l in lv) {
+        rows_spec[[length(rows_spec) + 1L]] <-
+          list(var = v, level = l, label = paste0(v, ": ", l))
+      }
+    }
+  }
+
+  row_labels <- vapply(rows_spec, function(r) r$label, character(1))
+
   # --- group labels, in a stable order --------------------------------------
-  lev <- lapply(group_cols, function(g) {
+  lev <- lapply(by, function(g) {
     z <- d[[g]]
     if (is.factor(z)) levels(droplevels(z))
     else sort(unique(as.character(z[!is.na(z)])))
   })
 
-  if (length(group_cols) == 1L) {
+  if (length(by) == 1L) {
     combos <- data.frame(a = lev[[1]], stringsAsFactors = FALSE)
-    names(combos) <- group_cols
+    names(combos) <- by
     labels <- combos[[1]]
-    key_d  <- as.character(d[[group_cols[1]]])
+    key_d  <- as.character(d[[by[1]]])
   } else {
     combos <- expand.grid(lev[[2]], lev[[1]], stringsAsFactors = FALSE)
     combos <- combos[, c(2, 1), drop = FALSE]
-    names(combos) <- group_cols
+    names(combos) <- by
     labels <- paste0(combos[[1]], sep, combos[[2]])
-    key_d  <- paste0(as.character(d[[group_cols[1]]]), sep,
-                     as.character(d[[group_cols[2]]]))
+    key_d  <- paste0(as.character(d[[by[1]]]), sep,
+                     as.character(d[[by[2]]]))
   }
 
-  key_combo <- if (length(group_cols) == 1L) combos[[1]] else labels
+  key_combo <- if (length(by) == 1L) combos[[1]] else labels
 
   present <- key_combo %in% unique(key_d)
   if (!any(present)) {
@@ -104,31 +121,39 @@ by_group <- function(d,
   }
 
   # --- cells ----------------------------------------------------------------
-  mat <- matrix(empty, nrow = length(vars_chr), ncol = length(labels),
-                dimnames = list(vars_chr, labels))
-  n_mat <- matrix(0L, nrow = length(vars_chr), ncol = length(labels),
-                  dimnames = list(vars_chr, labels))
+  mat <- matrix(empty, nrow = length(rows_spec), ncol = length(labels),
+                dimnames = list(row_labels, labels))
+  n_mat <- matrix(0L, nrow = length(rows_spec), ncol = length(labels),
+                  dimnames = list(row_labels, labels))
 
   fmt <- paste0("%.", digits, "f (%.", digits, "f)")
 
   for (j in seq_along(key_combo)) {
     rows <- which(key_d == key_combo[j])
-    for (i in seq_along(vars_chr)) {
-      z <- d[rows, vars_chr[i]]
-      z <- z[!is.na(z)]
-      n_mat[i, j] <- length(z)
-      if (length(z) == 0L) next
-      m <- mean(z)
-      s <- if (length(z) > 1L) stats::sd(z) else NA_real_
-      mat[i, j] <- if (is.na(s)) {
-        sprintf(paste0("%.", digits, "f (", empty, ")"), m)
-      } else {
-        sprintf(fmt, m, s)
+    for (i in seq_along(rows_spec)) {
+      spec <- rows_spec[[i]]
+      z <- d[rows, spec$var]
+
+      if (is.na(spec$level)) {                       # numeric: M (SD)
+        z <- z[!is.na(z)]
+        n_mat[i, j] <- length(z)
+        if (length(z) == 0L) next
+        m <- mean(z)
+        s <- if (length(z) > 1L) stats::sd(z) else NA_real_
+        mat[i, j] <- if (is.na(s)) {
+          sprintf(paste0("%.", digits, "f (", empty, ")"), m)
+        } else {
+          sprintf(fmt, m, s)
+        }
+      } else {                                       # categorical: a count
+        k <- sum(as.character(z) == spec$level, na.rm = TRUE)
+        n_mat[i, j] <- k
+        mat[i, j]   <- format(k, big.mark = ",", trim = TRUE)
       }
     }
   }
 
-  tab <- data.frame(v = vars_chr, mat, check.names = FALSE,
+  tab <- data.frame(v = row_labels, mat, check.names = FALSE,
                     stringsAsFactors = FALSE)
   names(tab)[1] <- var_name
   rownames(tab) <- NULL
@@ -139,7 +164,7 @@ by_group <- function(d,
   n_tab$n <- unname(n_group)
   rownames(n_tab) <- NULL
 
-  n_var <- data.frame(v = vars_chr, n_mat, check.names = FALSE,
+  n_var <- data.frame(v = row_labels, n_mat, check.names = FALSE,
                       stringsAsFactors = FALSE)
   names(n_var)[1] <- var_name
   rownames(n_var) <- NULL
@@ -155,7 +180,7 @@ by_group <- function(d,
 
   structure(
     list(table = tab, n = n_tab, n_var = n_var,
-         labels = labels, n_group = unname(n_group), vars = vars_chr),
+         labels = labels, n_group = unname(n_group), vars = row_labels),
     class = "classir_by_group"
   )
 }
