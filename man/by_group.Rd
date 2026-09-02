@@ -47,7 +47,8 @@ elements directly to export them.
 For looking at values of a variable by group (e.g., average reaction time by
 age group). Builds a table with one column per group. A numeric variable
 gets one row, each cell formatted as "M (SD)"; a variable holding only 0s and
-1s gets the share of 1s instead, since its mean is that share; and a
+1s gets the share of 1s instead, whether it is stored as a number, character
+or factor; and a
 categorical variable gets a row per level, each cell holding that level's
 count. Two grouping variables
 can be crossed, giving one column per combination.
