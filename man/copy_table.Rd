@@ -28,7 +28,9 @@ copy_table(
 \item{names_nice}{Logical. If TRUE (default), tidy the term names.}
 
 \item{rename}{Named character vector relabelling terms, old name on the
-left, e.g. \code{c(PoS = "Part of Speech")}. Applied after \code{names_nice}.}
+left, e.g. \code{c(PoS = "Part of Speech")}. The variable name on its own is
+enough for a categorical predictor -- \code{c(Conc_Cat = "Concreteness")} will
+match the term \code{Conc_Cat1}. Applied after \code{names_nice}.}
 
 \item{row_order}{Character vector putting the rows in the order you want,
 named as they are in the model rather than as \code{rename} relabels them. Terms

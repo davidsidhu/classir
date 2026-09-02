@@ -37,7 +37,9 @@
 #'   `< .001` where they are too small to show, and without a leading zero.
 #' @param names_nice Logical. If TRUE (default), tidy the term names.
 #' @param rename Named character vector relabelling terms, old name on the
-#'   left, e.g. `c(PoS = "Part of Speech")`. Applied after `names_nice`.
+#'   left, e.g. `c(PoS = "Part of Speech")`. The variable name on its own is
+#'   enough for a categorical predictor -- `c(Conc_Cat = "Concreteness")` will
+#'   match the term `Conc_Cat1`. Applied after `names_nice`.
 #' @param row_order Character vector putting the rows in the order you want,
 #'   named as they are in the model rather than as `rename` relabels them. Terms
 #'   you leave out keep their existing order at the end.
@@ -143,7 +145,8 @@ copy_table <- function(x,
   if (has_rn) {
     terms <- rn
     if (names_nice) terms <- nice_terms(terms, factor_levels(x))
-    if (!is.null(rename)) terms <- apply_rename(terms, rename, rn)
+    if (!is.null(rename)) terms <- apply_rename(terms, rename, rn,
+                                                factor_levels(x))
     out <- cbind(stats::setNames(data.frame(terms, stringsAsFactors = FALSE),
                                  row_name),
                  out)
@@ -278,14 +281,26 @@ nice_terms <- function(terms, flev) {
 
 # Internal: relabel terms, matching against the original names as well as the
 # tidied ones, so `rename` works whether or not `names_nice` ran
-apply_rename <- function(terms, rename, original) {
+apply_rename <- function(terms, rename, original, flev = list()) {
   if (is.null(names(rename)) || any(!nzchar(names(rename)))) {
     stop("`rename` must be named, e.g. c(PoS = \"Part of Speech\").",
          call. = FALSE)
   }
+
+  # the variable a raw term belongs to, so `rename = c(Conc_Cat = "...")`
+  # matches the term Conc_Cat1 without the contrast suffix being spelled out
+  vars <- names(flev)
+  vars <- vars[order(nchar(vars), decreasing = TRUE)]
+  var_of <- vapply(original, function(p) {
+    for (v in vars) {
+      if (startsWith(p, v)) return(v)
+    }
+    p
+  }, character(1), USE.NAMES = FALSE)
+
   for (old in names(rename)) {
     new <- unname(rename[[old]])
-    hit <- original == old | terms == old
+    hit <- original == old | terms == old | var_of == old
     terms[hit] <- new
     # also swap the variable name inside a compound label
     terms <- sub(paste0("\\b", old, "\\b"), new, terms)
