@@ -2,8 +2,10 @@
 #'
 #' For looking at values of a variable by group (e.g., average reaction time by
 #' age group). Builds a table with one column per group. A numeric variable
-#' gets one row, each cell formatted as "M (SD)"; a categorical variable gets a
-#' row per level, each cell holding that level's count. Two grouping variables
+#' gets one row, each cell formatted as "M (SD)"; a variable holding only 0s and
+#' 1s gets the share of 1s instead, since its mean is that share; and a
+#' categorical variable gets a row per level, each cell holding that level's
+#' count. Two grouping variables
 #' can be crossed, giving one column per combination.
 #'
 #' @param d A data.frame or data.table.
@@ -72,15 +74,19 @@ by_group <- function(d,
   for (i in seq_along(vars_chr)) {
     v <- vars_chr[i]
     if (is_num[i]) {
+      zz  <- d[[v]][!is.na(d[[v]])]
+      bin <- length(zz) > 0L && all(zz %in% c(0, 1))
       rows_spec[[length(rows_spec) + 1L]] <-
-        list(var = v, level = NA_character_, label = v)
+        list(var = v, level = NA_character_, label = v,
+             type = if (bin) "binary" else "numeric")
     } else {
       z  <- d[[v]]
       lv <- if (is.factor(z)) levels(droplevels(z)) else
         sort(unique(as.character(z[!is.na(z)])))
       for (l in lv) {
         rows_spec[[length(rows_spec) + 1L]] <-
-          list(var = v, level = l, label = paste0(v, ": ", l))
+          list(var = v, level = l, label = paste0(v, ": ", l),
+               type = "level")
       }
     }
   }
@@ -134,7 +140,14 @@ by_group <- function(d,
       spec <- rows_spec[[i]]
       z <- d[rows, spec$var]
 
-      if (is.na(spec$level)) {                       # numeric: M (SD)
+      if (identical(spec$type, "binary")) {          # 0/1: the share of 1s
+        z <- z[!is.na(z)]
+        n_mat[i, j] <- length(z)
+        if (length(z) == 0L) next
+        mat[i, j] <- sprintf("%.1f%% (%s)", 100 * mean(z),
+                             format(sum(z), big.mark = ",", trim = TRUE))
+
+      } else if (is.na(spec$level)) {                 # numeric: M (SD)
         z <- z[!is.na(z)]
         n_mat[i, j] <- length(z)
         if (length(z) == 0L) next
