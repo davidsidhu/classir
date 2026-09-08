@@ -108,9 +108,7 @@ read_clipboard <- function() {
   os <- Sys.info()[["sysname"]]
 
   if (identical(os, "Darwin")) {
-    con <- pipe("pbpaste", "r")
-    on.exit(close(con), add = TRUE)
-    return(readLines(con, warn = FALSE))
+    return(read_pipe_lines("pbpaste"))
   }
 
   if (identical(os, "Windows")) {
@@ -119,11 +117,30 @@ read_clipboard <- function() {
 
   for (tool in c("xclip -selection clipboard -o", "xsel --clipboard --output")) {
     if (nzchar(Sys.which(strsplit(tool, " ")[[1]][1]))) {
-      con <- pipe(tool, "r")
-      on.exit(close(con), add = TRUE)
-      return(readLines(con, warn = FALSE))
+      return(read_pipe_lines(tool))
     }
   }
 
   NULL
+}
+
+
+# Internal: read everything a command writes, then split into lines ourselves.
+# readLines() drops a final line that has no newline after it, and neither
+# pbpaste nor xclip adds one -- which silently loses the last row of a paste.
+read_pipe_lines <- function(cmd) {
+  con <- pipe(cmd, "rb")
+  on.exit(close(con), add = TRUE)
+
+  raw <- readBin(con, what = "raw", n = 50e6)
+  if (length(raw) == 0L) return(character(0))
+
+  txt <- rawToChar(raw)
+  Encoding(txt) <- "UTF-8"
+
+  txt <- gsub("\r\n", "\n", txt)     # Excel on Windows
+  txt <- gsub("\r", "\n", txt)       # very old Mac line endings
+  txt <- sub("\n$", "", txt)         # a single trailing newline is not a row
+
+  strsplit(txt, "\n", fixed = TRUE)[[1]]
 }
